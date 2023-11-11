@@ -104,17 +104,17 @@ def get_readme_contents():
 if __name__ == "__main__":
     setup(
         version=get_version_from_changelog(),
-        name="pyinfra",
-        description="pyinfra automates/provisions/manages/deploys infrastructure.",
+        name="pyinfra_forked_by_stone-w4tch3r",
+        description="Custom version for developing pyinfra",
         long_description=get_readme_contents(),
         long_description_content_type="text/markdown",
-        author="Nick / Fizzadar",
-        author_email="pointlessrambler@gmail.com",
+        author="stone-w4tch3r",
+        author_email="100294019+stone-w4tch3r@users.noreply.github.com",
         license="MIT",
         url="https://pyinfra.com",
         project_urls={
             "Documentation": "https://docs.pyinfra.com",
-            "GitHub": "https://github.com/Fizzadar/pyinfra",
+            "GitHub": "https://github.com/stone-w4tch3r/pyinfra_fork",
         },
         packages=find_packages(exclude=["tests", "docs"]),
         entry_points={
