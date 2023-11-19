@@ -1,3 +1,6 @@
+# v0.1.1
+Fixed `server.reboot` + sudo bug
+
 # v0.1.0
 
 # v2.8
