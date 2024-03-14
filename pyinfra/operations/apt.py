@@ -19,7 +19,7 @@ from .util.packaging import ensure_packages
 APT_UPDATE_FILENAME = "/var/lib/apt/periodic/update-success-stamp"
 
 
-def noninteractive_apt(command, force=False):
+def noninteractive_apt(command: str, force=False):
     args = ["DEBIAN_FRONTEND=noninteractive apt-get -y"]
 
     if force:
@@ -37,7 +37,8 @@ def noninteractive_apt(command, force=False):
 
 
 @operation
-def key(src=None, keyserver=None, keyid=None):
+# todo URL | Path
+def key(src: str = None, keyserver=None, keyid=None):
     """
     Add apt gpg keys with ``apt-key``.
 
@@ -109,7 +110,7 @@ def key(src=None, keyserver=None, keyid=None):
 
 
 @operation
-def repo(src, present=True, filename=None):
+def repo(src: str, present=True, filename: str = None):
     """
     Add/remove apt repositories.
 
@@ -172,7 +173,7 @@ def repo(src, present=True, filename=None):
 
 
 @operation(is_idempotent=False)
-def ppa(src, present=True):
+def ppa(src: str, present=True):
     """
     Add/remove Ubuntu ppa repositories.
 
@@ -202,6 +203,7 @@ def ppa(src, present=True):
 
 
 @operation
+# todo path or URL
 def deb(src, present=True, force=False):
     """
     Add/remove ``.deb`` file packages.
@@ -291,7 +293,7 @@ def deb(src, present=True, force=False):
         "unless the ``cache_time`` argument is provided."
     ),
 )
-def update(cache_time=None):
+def update(cache_time: int = None):
     """
     Updates apt repositories.
 
@@ -392,17 +394,17 @@ def dist_upgrade():
 
 @operation
 def packages(
-    packages=None,
+    packages: str | list[str] = None,
     present=True,
     latest=False,
     update=False,
-    cache_time=None,
+    cache_time: int = None,
     upgrade=False,
     force=False,
     no_recommends=False,
     allow_downgrades=False,
-    extra_install_args=None,
-    extra_uninstall_args=None,
+    extra_install_args: str = None,
+    extra_uninstall_args: str = None,
 ):
     """
     Install/remove/update packages & update apt.

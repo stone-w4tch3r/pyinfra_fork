@@ -1,7 +1,7 @@
 import re
 
 
-def parse_packages(regex, output):
+def parse_packages(regex, output) -> dict[str, set[str]]:
     packages = {}
 
     for line in output:
