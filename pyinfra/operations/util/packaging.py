@@ -4,9 +4,10 @@ from io import StringIO
 from typing import Callable
 from urllib.parse import urlparse
 
-from pyinfra.api import Host
+from pyinfra.api import Host, State
 from pyinfra.facts.files import File
 from pyinfra.facts.rpm import RpmPackage
+from pyinfra.operations import files
 
 
 def _package_name(package):
@@ -174,7 +175,13 @@ def ensure_packages(
         )
 
 
-def ensure_rpm(state, host, files, source, present, package_manager_command):
+def ensure_rpm(
+    state: State,
+    host: Host,
+    source: str,
+    present: bool,
+    package_manager_command: str
+):
     original_source = source
 
     # If source is a url
@@ -183,7 +190,7 @@ def ensure_rpm(state, host, files, source, present, package_manager_command):
         temp_filename = "{0}.rpm".format(state.get_temp_filename(source))
 
         # Ensure it's downloaded
-        yield from files.download(source, temp_filename)
+        yield from files.download(src=source, dest=temp_filename)
 
         # Override the source with the downloaded file
         source = temp_filename
@@ -226,18 +233,16 @@ def ensure_rpm(state, host, files, source, present, package_manager_command):
 
 
 def ensure_yum_repo(
-    state,
-    host,
-    files,
-    name_or_url,
-    baseurl,
-    present,
-    description,
-    enabled,
-    gpgcheck,
-    gpgkey,
+    host: Host,
+    name_or_url: str,
+    baseurl: str,
+    present: bool,
+    description: str,
+    enabled: bool,
+    gpgcheck: bool,
+    gpgkey: str,
     repo_directory="/etc/yum.repos.d/",
-    type_=None,
+    type_: str = None,
 ):
     url = None
     url_parts = urlparse(name_or_url)
@@ -251,13 +256,13 @@ def ensure_yum_repo(
 
     # If we don't want the repo, just remove any existing file
     if not present:
-        yield from files.file(filename, present=False)
+        yield from files.file(path=filename, present=False)
         return
 
     # If we're a URL, download the repo if it doesn't exist
     if url:
         if not host.get_fact(File, path=filename):
-            yield from files.download(url, filename)
+            yield from files.download(src=url, dest=filename)
         return
 
     # Description defaults to name
@@ -283,4 +288,4 @@ def ensure_yum_repo(
     repo = StringIO(repo)
 
     # Ensure this is the file on the server
-    yield from files.put(repo, filename)
+    yield from files.put(src=repo, dest=filename)
