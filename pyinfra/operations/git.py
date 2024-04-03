@@ -16,7 +16,7 @@ from .util.files import chown, unix_path_join
 @operation(
     pipeline_facts={"git_config": "repo"},
 )
-def config(key, value, multi_value=False, repo=None):
+def config(key: str, value: str, multi_value=False, repo: str = None):
     """
     Manage git config for a repository or globally.
 
@@ -68,13 +68,13 @@ def config(key, value, multi_value=False, repo=None):
     pipeline_facts={"git_branch": "target"},
 )
 def repo(
-    src,
-    dest,
-    branch=None,
+    src: str,
+    dest: str,
+    branch: str = None,
     pull=True,
     rebase=False,
-    user=None,
-    group=None,
+    user: str = None,
+    group: str = None,
     ssh_keyscan=False,
     update_submodules=False,
     recursive_submodules=False,
@@ -171,19 +171,19 @@ def repo(
 
 @operation()
 def worktree(
-    worktree,
-    repo=None,
+    worktree: str,
+    repo: str = None,
     detached=False,
-    new_branch=None,
-    commitish=None,
-    pull=True,
+    new_branch: str = None,
+    commitish: str = None,
+    pull=True,  # todo: not used!
     rebase=False,
-    from_remote_branch=None,
+    from_remote_branch: tuple[str, str] = None,
     present=True,
     assume_repo_exists=False,
     force=False,
-    user=None,
-    group=None,
+    user: str = None,
+    group: str = None,
 ):
     """
     Manage git worktrees.
@@ -361,9 +361,9 @@ def worktree(
 
 @operation
 def bare_repo(
-    path,
-    user=None,
-    group=None,
+    path: str,
+    user: str = None,
+    group: str = None,
     present=True,
 ):
     """
