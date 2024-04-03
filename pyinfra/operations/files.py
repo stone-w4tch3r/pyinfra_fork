@@ -9,6 +9,7 @@ import traceback
 from datetime import timedelta
 from fnmatch import fnmatch
 from io import StringIO
+from typing import IO, Any
 
 from jinja2 import TemplateRuntimeError, TemplateSyntaxError, UndefinedError
 
@@ -58,19 +59,19 @@ from .util.files import adjust_regex, ensure_mode_int, get_timestamp, sed_replac
     pipeline_facts={"file": "dest"},
 )
 def download(
-    src,
-    dest,
-    user=None,
-    group=None,
-    mode=None,
-    cache_time=None,
+    src: str,
+    dest: str,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
+    cache_time: int = None,
     force=False,
-    sha256sum=None,
-    sha1sum=None,
-    md5sum=None,
-    headers=None,
+    sha256sum: str = None,
+    sha1sum: str = None,
+    md5sum: str = None,
+    headers: dict[str, str] = None,
     insecure=False,
-    proxy=None,
+    proxy: str = None,
 ):
     """
     Download files from remote locations using ``curl`` or ``wget``.
@@ -246,11 +247,11 @@ def download(
 
 @operation
 def line(
-    path,
-    line,
+    path: str,
+    line: str,
     present=True,
-    replace=None,
-    flags=None,
+    replace: str = None,
+    flags: list[str] = None,
     backup=False,
     interpolate_variables=False,
     escape_regex_characters=False,
@@ -493,10 +494,10 @@ def line(
 
 @operation
 def replace(
-    path,
-    text=None,
-    replace=None,
-    flags=None,
+    path: str,
+    text: str = None,
+    replace: str = None,
+    flags: list[str] = None,
     backup=False,
     interpolate_variables=False,
     match=None,  # deprecated
@@ -578,15 +579,15 @@ def replace(
     pipeline_facts={"find_files": "destination"},
 )
 def sync(
-    src,
-    dest,
-    user=None,
-    group=None,
-    mode=None,
-    dir_mode=None,
+    src: str,
+    dest: str,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
+    dir_mode: str = None,
     delete=False,
-    exclude=None,
-    exclude_dir=None,
+    exclude: str | list[str] | tuple[str] = None,
+    exclude_dir: str | list[str] | tuple[str] = None,
     add_deploy_dir=True,
 ):
     """
@@ -701,8 +702,8 @@ def sync(
     # Put each file combination
     for local_filename, remote_filename in put_files:
         yield from put(
-            local_filename,
-            remote_filename,
+            src=local_filename,
+            dest=remote_filename,
             user=user,
             group=group,
             mode=mode or get_path_permissions_mode(local_filename),
@@ -729,7 +730,7 @@ def show_rsync_warning():
 
 
 @operation(is_idempotent=False)
-def rsync(src, dest, flags=["-ax", "--delete"]):
+def rsync(src: str, dest: str, flags: list[str] = None):
     """
     Use ``rsync`` to sync a local directory to the remote system. This operation will actually call
     the ``rsync`` binary on your system.
@@ -744,6 +745,8 @@ def rsync(src, dest, flags=["-ax", "--delete"]):
         global arguments.
     """
 
+    if flags is None:
+        flags = ["-ax", "--delete"]
     show_rsync_warning()
 
     try:
@@ -777,8 +780,8 @@ def _create_remote_dir(state, host, remote_filename, user, group):
     },
 )
 def get(
-    src,
-    dest,
+    src: str,
+    dest:str,
     add_deploy_dir=True,
     create_local_dir=False,
     force=False,
@@ -842,11 +845,11 @@ def get(
     },
 )
 def put(
-    src,
-    dest,
-    user=None,
-    group=None,
-    mode=None,
+    src: str | IO[Any],
+    dest: str,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
     add_deploy_dir=True,
     create_remote_dir=True,
     force=False,
@@ -999,7 +1002,15 @@ def put(
 
 
 @operation
-def template(src, dest, user=None, group=None, mode=None, create_remote_dir=True, **data):
+def template(
+    src: str | IO[Any],
+    dest: str,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
+    create_remote_dir=True,
+    **data
+):
     '''
     Generate a template using jinja2 and write it to the remote system.
 
@@ -1118,8 +1129,8 @@ def template(src, dest, user=None, group=None, mode=None, create_remote_dir=True
 
     # Pass to the put function
     yield from put(
-        output_file,
-        dest,
+        src=output_file,
+        dest=dest,
         user=user,
         group=group,
         mode=mode,
@@ -1153,17 +1164,17 @@ def _raise_or_remove_invalid_path(fs_type, path, force, force_backup, force_back
     pipeline_facts={"link": "path"},
 )
 def link(
-    path,
-    target=None,
+    path: str,
+    target: str = None,
     present=True,
     assume_present=False,
-    user=None,
-    group=None,
+    user: str = None,
+    group: str = None,
     symbolic=True,
     create_remote_dir=True,
     force=False,
     force_backup=True,
-    force_backup_dir=None,
+    force_backup_dir: str = None,
 ):
     """
     Add/remove/update links.
@@ -1311,17 +1322,17 @@ def link(
     pipeline_facts={"file": "path"},
 )
 def file(
-    path,
+    path: str,
     present=True,
     assume_present=False,
-    user=None,
-    group=None,
-    mode=None,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
     touch=False,
     create_remote_dir=True,
     force=False,
     force_backup=True,
-    force_backup_dir=None,
+    force_backup_dir: str = None,
 ):
     """
     Add/remove/update files.
@@ -1437,16 +1448,16 @@ def file(
     pipeline_facts={"directory": "path"},
 )
 def directory(
-    path,
+    path: str,
     present=True,
     assume_present=False,
-    user=None,
-    group=None,
-    mode=None,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
     recursive=False,
     force=False,
     force_backup=True,
-    force_backup_dir=None,
+    force_backup_dir: str = None,
     _no_check_owner_mode=False,
     _no_fail_on_link=False,
 ):
@@ -1560,7 +1571,7 @@ def directory(
 
 
 @operation(pipeline_facts={"flags": "path"})
-def flags(path, flags=None, present=True):
+def flags(path: str, flags: list[str] = None, present=True):
     """
     Set/clear file flags.
 
@@ -1618,18 +1629,18 @@ def flags(path, flags=None, present=True):
     pipeline_facts={"file": "path"},
 )
 def block(
-    path,
-    content=None,
+    path: str,
+    content: str = None,
     present=True,
-    line=None,
+    line: str = None,
     backup=False,
     escape_regex_characters=False,
     try_prevent_shell_expansion=False,
     before=False,
     after=False,
-    marker=None,
-    begin=None,
-    end=None,
+    marker: str = None,
+    begin: str = None,
+    end: str = None,
 ):
     """
     Ensure content, surrounded by the appropriate markers, is present (or not) in the file.
