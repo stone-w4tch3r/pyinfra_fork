@@ -203,8 +203,7 @@ def ppa(src: str, present=True):
 
 
 @operation
-# todo path or URL
-def deb(src, present=True, force=False):
+def deb(src: str, present=True, force=False):
     """
     Add/remove ``.deb`` file packages.
 

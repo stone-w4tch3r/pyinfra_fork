@@ -5,7 +5,7 @@ Manage brew packages on mac/OSX. See https://brew.sh/
 import urllib
 
 from pyinfra import host
-from pyinfra.api import operation
+from pyinfra.api import operation, Host
 from pyinfra.facts.brew import BrewCasks, BrewPackages, BrewTaps, BrewVersion, new_cask_cli
 
 from .util.packaging import ensure_packages
@@ -37,7 +37,7 @@ _upgrade = upgrade  # noqa: E305
 
 @operation
 def packages(
-    packages=None,
+    packages: str | list[str] = None,
     present=True,
     latest=False,
     update=False,
@@ -93,7 +93,7 @@ def packages(
     )
 
 
-def cask_args(host):
+def cask_args():
     return ("", " --cask") if new_cask_cli(host.get_fact(BrewVersion)) else ("cask ", "")
 
 
@@ -106,14 +106,14 @@ def cask_upgrade():
     Upgrades all brew casks.
     """
 
-    yield "brew %supgrade%s" % cask_args(host)
+    yield "brew %supgrade%s" % cask_args()
 
 
 @operation(
     pipeline_facts={"brew_version": ""},
 )
 def casks(
-    casks=None,
+    casks: str | list[str] = None,
     present=True,
     latest=False,
     upgrade=False,
@@ -161,7 +161,7 @@ def casks(
 
 
 @operation
-def tap(src=None, present=True, url=None):
+def tap(src: str = None, present=True, url: str = None):
     """
     Add/remove brew taps.
 

@@ -1,19 +1,22 @@
+from pyinfra.api import Host
+
+
 def handle_service_control(
-    host,
-    name,
-    statuses,
-    formatter,
-    running,
-    restarted,
-    reloaded,
-    command,
+    host: Host,
+    name: str,
+    statuses: dict[str, bool],
+    formatter: str,
+    running: bool,
+    restarted: bool,
+    reloaded: bool,
+    command: str,
     status_argument="status",
 ):
-    status = statuses.get(name, None)
+    is_running = statuses.get(name, None)
 
     # If we don't know the status, we need to check if it's up before starting
     # and/or restarting/reloading
-    if status is None:
+    if is_running is None:
         yield (
             "if ({status_command}); then "
             "({stop_command}); ({restart_command}); ({reload_command}); "
@@ -30,7 +33,7 @@ def handle_service_control(
     else:
         # Need down but running
         if running is False:
-            if status:
+            if is_running:
                 yield formatter.format(name, "stop")
                 statuses[name] = False
             else:
@@ -38,18 +41,18 @@ def handle_service_control(
 
         # Need running but down
         if running is True:
-            if not status:
+            if not is_running:
                 yield formatter.format(name, "start")
                 statuses[name] = True
             else:
                 host.noop("service {0} is running".format(name))
 
         # Only restart if the service is already running
-        if restarted and status:
+        if restarted and is_running:
             yield formatter.format(name, "restart")
 
         # Only reload if the service is already reloaded
-        if reloaded and status:
+        if reloaded and is_running:
             yield formatter.format(name, "reload")
 
     # Always execute arbitrary commands as these may or may not rely on the service
