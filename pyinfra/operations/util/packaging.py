@@ -1,24 +1,52 @@
 import shlex
-from collections import defaultdict, namedtuple
-from dataclasses import dataclass
+from collections import defaultdict
 from io import StringIO
-from typing import Callable, Tuple, Dict, Set, List
+from typing import Callable
 from urllib.parse import urlparse
 
+from pyinfra.api import Host
 from pyinfra.facts.files import File
 from pyinfra.facts.rpm import RpmPackage
-from pyinfra.api import Host
 
 
-@dataclass
-class _Package:
-    name: str
-    version: str | None = None
+def _package_name(package):
+    if isinstance(package, list):
+        return package[0]
+    return package
+
+
+def _has_package(package, packages, expand_package_fact=None, match_any=False):
+    def in_packages(pkg_name, pkg_versions):
+        if not pkg_versions:
+            return pkg_name in packages
+        return pkg_name in packages and any(
+            version in packages[pkg_name] for version in pkg_versions
+        )
+
+    packages_to_check = [package]
+    if expand_package_fact:
+        packages_to_check = expand_package_fact(package) or packages_to_check
+
+    package_name_to_versions = defaultdict(set)
+    for pkg in packages_to_check:
+        if isinstance(pkg, list):
+            package_name_to_versions[pkg[0]].add(pkg[1])
+        else:
+            package_name_to_versions[pkg]  # just make sure it exists
+
+    checks = (
+        in_packages(pkg_name, pkg_versions)
+        for pkg_name, pkg_versions in package_name_to_versions.items()
+    )
+
+    if match_any:
+        return any(checks), package_name_to_versions
+    return all(checks), package_name_to_versions
 
 
 def ensure_packages(
     host: Host,
-    packages_to_ensure: str | list[str] | None,
+    packages_to_ensure: str | list[str],
     current_packages_to_versions: dict[str, set[str]],
     present: bool,
     install_command: str,
@@ -38,6 +66,7 @@ def ensure_packages(
     + Optionally upgrades packages w/o specified version when present
 
     Args:
+        host: host object
         packages_to_ensure: list of packages or package/versions
         current_packages_to_versions: fact returning dict of package names -> version
         present: whether packages should exist or not
@@ -47,75 +76,67 @@ def ensure_packages(
         upgrade_command: as above for upgrading
         version_join: the package manager specific "joiner", ie ``=`` for \
             ``<apt_pkg>=<version>``
+        expand_package_fact: fact returning list of packages providing a capability (ie ``yum whatprovides``)
     """
 
-    if not packages_to_ensure:
+    if packages_to_ensure is None:
         return
-
-    current_packages = [
-        _Package(name=name, version=version)
-        for name, versions in current_packages_to_versions.items()
-        for version in versions
-    ]
 
     if isinstance(packages_to_ensure, str):
         packages_to_ensure = [packages_to_ensure]
+
     if version_join:
-        packages = [
-            _Package(name=package_with_version[0])
-            if len(package_with_version) == 1
-            else _Package(name=package_with_version[0], version=package_with_version[1])
-            for package_with_version in [package.rsplit(version_join, 1) for package in packages_to_ensure]
+        packages_to_ensure = [
+            package[0] if len(package) == 1 else package
+            for package in [package.rsplit(version_join, 1) for package in packages_to_ensure]
         ]
-    else:
-        packages = [_Package(name=package) for package in packages_to_ensure]
 
-    # if expand_package_fact:
-    #     # todo: can expand_package_fact return None?
-    #     current_packages = [
-    #         _Package(name=pkg_name, version="VERSION_HERE")  # todo: version
-    #         for pkg in current_packages
-    #         for pkg_name in expand_package_fact(pkg.name)
-    #     ]
+    diff_packages = []
+    diff_expanded_packages = {}
 
-    diff_packages: list[_Package] = []
-    diff_packages_with_versions: dict[_Package, dict[str, set[str] | None]] = {}
-    upgrade_packages: list[_Package] = []
+    upgrade_packages = []
 
     if present is True:
-        for package in packages:
-            is_present, packages_with_versions = any(pkg in current_packages for pkg in packages_to_check)
+        for package in packages_to_ensure:
+            has_package, expanded_packages = _has_package(
+                package,
+                current_packages_to_versions,
+                expand_package_fact,
+            )
 
-            if not is_present:
+            if not has_package:
                 diff_packages.append(package)
-                diff_packages_with_versions[package] = packages_with_versions
+                diff_expanded_packages[_package_name(package)] = expanded_packages
             else:
                 # Present packages w/o version specified - for upgrade if latest
-                upgrade_packages.append(package)
+                if isinstance(package, str):
+                    upgrade_packages.append(package)
 
                 if not latest:
-                    if package.name in current_packages_to_versions:
+                    pkg_name = _package_name(package)
+                    if pkg_name in current_packages_to_versions:
                         host.noop(
                             "package {0} is installed ({1})".format(
                                 package,
-                                ", ".join(current_packages_to_versions[package.name]),
+                                ", ".join(current_packages_to_versions[pkg_name]),
                             ),
                         )
                     else:
                         host.noop("package {0} is installed".format(package))
 
     if present is False:
-        for package in packages:
-            is_present, packages_with_versions = _is_package_in_current(
+        for package in packages_to_ensure:
+            # String version, just check if existing
+            has_package, expanded_packages = _has_package(
                 package,
                 current_packages_to_versions,
                 expand_package_fact,
-                all_expanded_packages_required=True,
+                match_any=True,
             )
 
-            if is_present:
+            if has_package:
                 diff_packages.append(package)
-                diff_packages_with_versions[package] = packages_with_versions
+                diff_expanded_packages[_package_name(package)] = expanded_packages
             else:
                 host.noop("package {0} is not installed".format(package))
 
@@ -123,7 +144,7 @@ def ensure_packages(
         command = install_command if present else uninstall_command
 
         joined_packages = [
-            package.name if package.version is None else f"{package.name}{version_join}{package.version}"
+            version_join.join(package) if isinstance(package, list) else package
             for package in diff_packages
         ]
 
@@ -133,21 +154,23 @@ def ensure_packages(
         )
 
         for package in diff_packages:  # add/remove from current packages
-            pkg_name = package.name
-            version = package.version if package.version else "unknown"
+            pkg_name = _package_name(package)
+            version = "unknown"
+            if isinstance(package, list):
+                version = package[1]
 
             if present:
                 current_packages_to_versions[pkg_name] = {version}
-                current_packages_to_versions.update(diff_packages_with_versions.get(pkg_name, {}))
+                current_packages_to_versions.update(diff_expanded_packages.get(pkg_name, {}))
             else:
                 current_packages_to_versions.pop(pkg_name, None)
-                for name in diff_packages_with_versions.get(pkg_name, {}):
+                for name in diff_expanded_packages.get(pkg_name, {}):
                     current_packages_to_versions.pop(name, None)
 
     if latest and upgrade_command and upgrade_packages:
         yield "{0} {1}".format(
             upgrade_command,
-            " ".join([shlex.quote(pkg.name) for pkg in upgrade_packages]),
+            " ".join([shlex.quote(pkg) for pkg in upgrade_packages]),
         )
 
 
