@@ -40,7 +40,7 @@ _update = update._inner  # noqa: E305
 
 @operation()
 def packages(
-    packages=None,
+    packages: str | list[str] = None,
     present=True,
     latest=False,
     update=False,

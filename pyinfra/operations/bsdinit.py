@@ -13,12 +13,12 @@ from .util.service import handle_service_control
 
 @operation()
 def service(
-    service,
+    service: str,
     running=True,
     restarted=False,
     reloaded=False,
-    command=None,
-    enabled=None,
+    command: str = None,
+    enabled: bool = None,
 ):
     """
     Manage the state of BSD init services.
