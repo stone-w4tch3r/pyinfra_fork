@@ -140,7 +140,7 @@ def wait(port: int):
 
 
 @operation(is_idempotent=False)
-def shell(commands):
+def shell(commands: str | list[str]):
     """
     Run raw shell code on server during a deploy. If the command would
     modify data that would be in a fact, the fact would not be updated
@@ -167,7 +167,7 @@ def shell(commands):
 
 
 @operation(is_idempotent=False)
-def script(src, args=()):
+def script(src: str, args=()):
     """
     Upload and execute a local script on the remote host.
 
@@ -200,7 +200,7 @@ def script(src, args=()):
 
 
 @operation(is_idempotent=False)
-def script_template(src, args=(), **data):
+def script_template(src: str, args=(), **data):
     """
     Generate, upload and execute a local script template on the remote host.
 
@@ -230,7 +230,7 @@ def script_template(src, args=(), **data):
 
 
 @operation()
-def modprobe(module, present=True, force=False):
+def modprobe(module: str, present=True, force=False):
     """
     Load/unload kernel modules.
 
@@ -282,11 +282,11 @@ def modprobe(module, present=True, force=False):
 
 @operation()
 def mount(
-    path,
+    path: str,
     mounted=True,
-    options=None,
-    device=None,
-    fs_type=None,
+    options: list[str] = None,
+    device: str = None,
+    fs_type: str = None,
     # TODO: do we want to manage fstab here?
     # update_fstab=False,
 ):
@@ -345,7 +345,7 @@ def mount(
 
 
 @operation()
-def hostname(hostname, hostname_file=None):
+def hostname(hostname: str, hostname_file: str = None):
     """
     Set the system hostname using ``hostnamectl`` or ``hostname`` on older systems.
 
@@ -403,8 +403,8 @@ def hostname(hostname, hostname_file=None):
 
 @operation()
 def sysctl(
-    key,
-    value,
+    key: str,
+    value: str,
     persist=False,
     persist_file="/etc/sysctl.conf",
 ):
@@ -450,12 +450,12 @@ def sysctl(
 
 @operation()
 def service(
-    service,
+    service: str,
     running=True,
     restarted=False,
     reloaded=False,
-    command=None,
-    enabled=None,
+    command: str = None,
+    enabled: bool = None,
 ):
     """
     Manage the state of services. This command checks for the presence of all the
@@ -519,7 +519,7 @@ def service(
 
 @operation()
 def packages(
-    packages,
+    packages: str | list[str],
     present=True,
 ):
     """
@@ -584,16 +584,16 @@ def packages(
 
 @operation()
 def crontab(
-    command,
+    command: str,
     present=True,
-    user=None,
-    cron_name=None,
+    user: str = None,
+    cron_name: str = None,
     minute="*",
     hour="*",
     month="*",
     day_of_week="*",
     day_of_month="*",
-    special_time=None,
+    special_time: str = None,
     interpolate_variables=False,
 ):
     """
@@ -759,7 +759,7 @@ def crontab(
 
 
 @operation()
-def group(group, present=True, system=False, gid=None):
+def group(group: str, present=True, system=False, gid: int | str = None):
     """
     Add/remove system groups.
 
@@ -828,12 +828,12 @@ def group(group, present=True, system=False, gid=None):
 
 @operation()
 def user_authorized_keys(
-    user,
-    public_keys,
-    group=None,
+    user: str,
+    public_keys: str | list[str],
+    group: str = None,
     delete_keys=False,
-    authorized_key_directory=None,
-    authorized_key_filename=None,
+    authorized_key_directory: str = None,
+    authorized_key_filename: str = None,
 ):
     """
     Manage `authorized_keys` of system users.
@@ -926,22 +926,22 @@ def user_authorized_keys(
 
 @operation()
 def user(
-    user,
+    user: str,
     present=True,
-    home=None,
-    shell=None,
-    group=None,
-    groups=None,
-    public_keys=None,
+    home: str = None,
+    shell: str = None,
+    group: str = None,
+    groups: list[str] = None,
+    public_keys: str | list[str] = None,
     delete_keys=False,
     ensure_home=True,
     create_home=False,
     system=False,
-    uid=None,
-    comment=None,
+    uid: int | str = None,
+    comment: str = None,
     add_deploy_dir=True,
     unique=True,
-    password=None,
+    password: str = None,
 ):
     """
     Add/remove/update system users & their ssh `authorized_keys`.
@@ -1150,7 +1150,7 @@ def user(
 
 @operation()
 def locale(
-    locale,
+    locale: str,
     present=True,
 ):
     """
@@ -1220,10 +1220,10 @@ def locale(
 
 @operation()
 def security_limit(
-    domain,
-    limit_type,
-    item,
-    value,
+    domain: str,
+    limit_type: str,
+    item: str,
+    value: str | int,
 ):
     """
     Edit /etc/security/limits.conf configuration.
