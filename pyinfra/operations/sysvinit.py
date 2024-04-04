@@ -14,12 +14,12 @@ from .util.service import handle_service_control
 
 @operation()
 def service(
-    service,
+    service: str,
     running=True,
     restarted=False,
     reloaded=False,
-    enabled=None,
-    command=None,
+    enabled: bool = None,
+    command: str = None,
 ):
     """
     Manage the state of SysV Init (/etc/init.d) services.
@@ -95,7 +95,7 @@ def service(
 
 @operation()
 def enable(
-    service,
+    service: str,
     start_priority=20,
     stop_priority=80,
     start_levels=(2, 3, 4, 5),

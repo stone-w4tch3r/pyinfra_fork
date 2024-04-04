@@ -10,7 +10,7 @@ from .util.service import handle_service_control
 
 
 @operation(is_idempotent=False)
-def daemon_reload(user_mode=False, machine=None, user_name=None):
+def daemon_reload(user_mode=False, machine: str = None, user_name: str = None):
     """
     Reload the systemd daemon to read unit file changes.
 
@@ -33,16 +33,16 @@ _daemon_reload = daemon_reload._inner  # noqa: E305
 
 @operation()
 def service(
-    service,
+    service: str,
     running=True,
     restarted=False,
     reloaded=False,
-    command=None,
-    enabled=None,
+    command: str = None,
+    enabled: bool = None,
     daemon_reload=False,
     user_mode=False,
-    machine=None,
-    user_name=None,
+    machine: str = None,
+    user_name: str = None,
 ):
     """
     Manage the state of systemd managed units.
