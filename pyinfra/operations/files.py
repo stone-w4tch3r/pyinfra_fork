@@ -781,7 +781,7 @@ def _create_remote_dir(state, host, remote_filename, user, group):
 )
 def get(
     src: str,
-    dest:str,
+    dest: str,
     add_deploy_dir=True,
     create_local_dir=False,
     force=False,

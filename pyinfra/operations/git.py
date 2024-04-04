@@ -176,7 +176,7 @@ def worktree(
     detached=False,
     new_branch: str = None,
     commitish: str = None,
-    pull=True,  # todo: not used!
+    pull=True,
     rebase=False,
     from_remote_branch: tuple[str, str] = None,
     present=True,
