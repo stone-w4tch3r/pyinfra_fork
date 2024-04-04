@@ -140,7 +140,7 @@ def casks(
     if upgrade:
         yield from cask_upgrade._inner()
 
-    args = cask_args(host)
+    args = cask_args()
 
     yield from ensure_packages(
         host,
