@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
+from typing import Iterable
 
 
-def parse_packages(regex, output) -> dict[str, set[str]]:
+def parse_packages(regex: str, output: Iterable[str]) -> dict[str, set[str]]:
     packages = {}
 
     for line in output:

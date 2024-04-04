@@ -37,8 +37,7 @@ def noninteractive_apt(command: str, force=False):
 
 
 @operation()
-# todo URL | Path
-def key(src: str = None, keyserver=None, keyid=None):
+def key(src: str = None, keyserver: str = None, keyid: str = None):
     """
     Add apt gpg keys with ``apt-key``.
 
