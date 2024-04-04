@@ -19,16 +19,16 @@ from .util.files import ensure_mode_int
     pipeline_facts={"file": "dest"},
 )
 def download(
-    src,
-    dest,
-    user=None,
-    group=None,
-    mode=None,
-    cache_time=None,
+    src: str,
+    dest: str,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
+    cache_time: int = None,
     force=False,
-    sha256sum=None,
-    sha1sum=None,
-    md5sum=None,
+    sha256sum: str = None,
+    sha1sum: str = None,
+    md5sum: str = None,
 ):
     """
     Download files from remote locations using curl or wget.
@@ -135,11 +135,11 @@ def download(
     },
 )
 def put(
-    src,
-    dest,
-    user=None,
-    group=None,
-    mode=None,
+    src: str,
+    dest: str,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
     add_deploy_dir=True,
     create_remote_dir=True,
     force=False,
@@ -257,12 +257,12 @@ def put(
     pipeline_facts={"windows_file": "name"},
 )
 def file(
-    path,
+    path: str,
     present=True,
     assume_present=False,
-    user=None,
-    group=None,
-    mode=None,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
     touch=False,
     create_remote_dir=True,
 ):
@@ -356,12 +356,12 @@ def _create_remote_dir(state, host, remote_filename, user, group):
     pipeline_facts={"windows_directory": "name"},
 )
 def directory(
-    path,
+    path: str,
     present=True,
     assume_present=False,
-    user=None,
-    group=None,
-    mode=None,
+    user: str = None,
+    group: str = None,
+    mode: str = None,
     recursive=False,
 ):
     """
@@ -461,12 +461,12 @@ def _validate_path(path):
     pipeline_facts={"link": "path"},
 )
 def link(
-    path,
-    target=None,
+    path: str,
+    target: str = None,
     present=True,
     assume_present=False,
-    user=None,
-    group=None,
+    user: str = None,
+    group: str = None,
     symbolic=True,
     force=True,
     create_remote_dir=True,

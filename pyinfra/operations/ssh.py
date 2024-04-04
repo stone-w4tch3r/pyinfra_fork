@@ -15,7 +15,7 @@ from . import files
 
 
 @operation
-def keyscan(hostname, force=False, port=22):
+def keyscan(hostname: str, force=False, port=22):
     """
     Check/add hosts to the ``~/.ssh/known_hosts`` file.
 
@@ -73,7 +73,7 @@ def keyscan(hostname, force=False, port=22):
 
 
 @operation(is_idempotent=False)
-def command(hostname, command, user=None, port=22):
+def command(hostname: str, command: str, user: str = None, port=22):
     """
     Execute commands on other servers over SSH.
 
@@ -105,11 +105,11 @@ def command(hostname, command, user=None, port=22):
 
 @operation(is_idempotent=False)
 def upload(
-    hostname,
-    filename,
-    remote_filename=None,
+    hostname: str,
+    filename: str,
+    remote_filename: str = None,
     port=22,
-    user=None,
+    user: str = None,
     use_remote_sudo=False,
     ssh_keyscan=False,
 ):
@@ -169,12 +169,12 @@ def upload(
 
 @operation
 def download(
-    hostname,
-    filename,
-    local_filename=None,
+    hostname: str,
+    filename: str,
+    local_filename: str = None,
     force=False,
     port=22,
-    user=None,
+    user: str = None,
     ssh_keyscan=False,
 ):
     """
