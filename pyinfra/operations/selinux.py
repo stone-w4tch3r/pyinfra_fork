@@ -1,21 +1,35 @@
 """
 Provides operations to set SELinux file contexts, booleans and port types.
 """
+from enum import Enum
+
 from pyinfra import host
-from pyinfra.api import QuoteString, StringCommand, operation
+from pyinfra.api import QuoteString, StringCommand, operation, OperationValueError
 from pyinfra.facts.selinux import FileContext, FileContextMapping, SEBoolean, SEPort, SEPorts
 from pyinfra.facts.server import Which
+
+
+class Boolean(Enum):
+    ON = "on"
+    OFF = "off"
+
+
+class Protocol(Enum):
+    UDP = "udp"
+    TCP = "tcp"
+    SCTP = "sctp"
+    DCCP = "dccp"
 
 
 @operation(
     pipeline_facts={"seboolean": "bool_name"},
 )
-def boolean(bool_name, value, persistent=False):
+def boolean(bool_name: str, value: Boolean, persistent=False):
     """
     Set the specified SELinux boolean to the desired state.
 
     + boolean: name of an SELinux boolean
-    + state: 'on' or 'off'
+    + value: desired state of the boolean
     + persistent: whether to write updated policy or not
 
     Note: This operation requires root privileges.
@@ -27,16 +41,19 @@ def boolean(bool_name, value, persistent=False):
         selinux.boolean(
             name='Allow Apache to connect to LDAP server',
             'httpd_can_network_connect',
-            'on',
+            Boolean.ON,
             persistent=True
         )
     """
-    _valid_states = ["on", "off"]
 
-    if value not in _valid_states:
-        raise ValueError(
-            f'\'value\' must be one of \'{",".join(_valid_states)}\' but found \'{value}\'',
-        )
+    if value in ["on", "off"]:  # compatibility with the old version
+        pass
+    elif value is Boolean.ON:
+        value = "on"
+    elif value is Boolean.OFF:
+        value = "off"
+    else:
+        raise OperationValueError(f"Invalid value '{value}' for boolean operation")
 
     if host.get_fact(SEBoolean, boolean=bool_name) != value:
         persist = "-P " if persistent else ""
@@ -49,7 +66,7 @@ def boolean(bool_name, value, persistent=False):
 @operation(
     pipeline_facts={"filecontext": "path"},
 )
-def file_context(path, se_type):
+def file_context(path: str, se_type: str):
     """
     Set the SELinux type for the specified path to the specified value.
 
@@ -82,7 +99,7 @@ def file_context(path, se_type):
 @operation(
     pipeline_facts={"filecontextmapping": "target"},
 )
-def file_context_mapping(target, se_type=None, present=True):
+def file_context_mapping(target: str, se_type: str = None, present=True):
     """
     Set the SELinux file context mapping for paths matching the target.
 
@@ -131,7 +148,7 @@ def file_context_mapping(target, se_type=None, present=True):
 @operation(
     pipeline_facts={"which": "sepolicy"},
 )
-def port(protocol, port_num, se_type=None, present=True):
+def port(protocol: Protocol, port_num: int, se_type: str = None, present=True):
     """
     Set the SELinux type for the specified protocol and port.
 
@@ -148,11 +165,14 @@ def port(protocol, port_num, se_type=None, present=True):
 
         selinux.port(
             name='Allow Apache to provide service on port 2222',
-            'tcp',
+            Protocol.TCP,
             2222,
             'http_port_t',
         )
     """
+
+    if protocol is Protocol:
+        protocol = protocol.value
 
     if present and (se_type is None):
         raise ValueError("se_type must have a valid value if present is set")

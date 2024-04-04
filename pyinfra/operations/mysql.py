@@ -26,13 +26,13 @@ from pyinfra.facts.mysql import (
 
 @operation(is_idempotent=False)
 def sql(
-    sql,
-    database=None,
+    sql: str,
+    database: str = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Execute arbitrary SQL against MySQL.
@@ -54,27 +54,28 @@ def sql(
 
 @operation
 def user(
-    user,
-    present=True,
-    user_hostname="localhost",
-    password=None,
-    privileges=None,
+    user: str,
+    present: bool = True,
+    user_hostname: str = "localhost",
+    password: str = None,
+    privileges: str | list[str] = None,
     # MySQL REQUIRE SSL/TLS options
-    require=None,  # SSL or X509
-    require_cipher=False,
-    require_issuer=False,
-    require_subject=False,
+    require: str = None,  # SSL or X509
+    require_cipher: str = None,
+    require_issuer: str = None,
+    require_subject: str = None,
     # MySQL WITH resource limit options
-    max_connections=None,
-    max_queries_per_hour=None,
-    max_updates_per_hour=None,
-    max_connections_per_hour=None,
+    max_connections: int = None,
+    max_queries_per_hour: int = None,
+    max_updates_per_hour: int = None,
+    max_connections_per_hour: int = None,
     # Details for speaking to MySQL via `mysql` CLI via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
+    ...
     """
     Add/remove/update MySQL users.
 
@@ -297,24 +298,25 @@ def user(
 
 @operation
 def database(
-    database,
+    database: str,
     # Desired database settings
-    present=True,
-    collate=None,
-    charset=None,
-    user=None,
-    user_hostname="localhost",
-    user_privileges="ALL",
+    present: bool = True,
+    collate: str = None,
+    charset: str = None,
+    user: str = None,
+    user_hostname: str = "localhost",
+    user_privileges: str | list[str] = "ALL",
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
+    ...
     """
     Add/remove MySQL databases.
 
-    + name: the name of the database
+    + database: the name of the database
     + present: whether the database should exist or not
     + collate: the collate to use when creating the database
     + charset: the charset to use when creating the database
@@ -404,18 +406,18 @@ def database(
 
 @operation
 def privileges(
-    user,
-    privileges,
+    user: str,
+    privileges: str | list[str],
     user_hostname="localhost",
     database="*",
     table="*",
     flush=True,
     with_grant_option=False,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Add/remove MySQL privileges for a user, either global, database or table specific.
@@ -547,13 +549,13 @@ _privileges = privileges  # noqa: E305 (for use where kwarg is the same)
 
 @operation(is_idempotent=False)
 def dump(
-    dest,
-    database=None,
+    dest: str,
+    database: str = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Dump a MySQL database into a ``.sql`` file. Requires ``mysqldump``.
@@ -588,13 +590,13 @@ def dump(
 
 @operation(is_idempotent=False)
 def load(
-    src,
-    database=None,
+    src: str,
+    database: str = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Load ``.sql`` file into a database.

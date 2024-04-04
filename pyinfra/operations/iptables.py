@@ -10,10 +10,10 @@ from pyinfra.facts.iptables import Ip6tablesChains, Ip6tablesRules, IptablesChai
 
 @operation
 def chain(
-    chain,
+    chain: str,
     present=True,
     table="filter",
-    policy=None,
+    policy: str = None,
     version=4,
 ):
     """
@@ -61,32 +61,32 @@ def chain(
 
 @operation
 def rule(
-    chain,
-    jump,
-    present=True,
-    table="filter",
-    append=True,
-    version=4,
+    chain: str,
+    jump: str,
+    present: bool = True,
+    table: str = "filter",
+    append: bool = True,
+    version: int = 4,
     # Core iptables filter arguments
-    protocol=None,
-    not_protocol=None,
-    source=None,
-    not_source=None,
-    destination=None,
-    not_destination=None,
-    in_interface=None,
-    not_in_interface=None,
-    out_interface=None,
-    not_out_interface=None,
+    protocol: str = None,
+    not_protocol: str = None,
+    source: str = None,
+    not_source: str = None,
+    destination: str = None,
+    not_destination: str = None,
+    in_interface: str = None,
+    not_in_interface: str = None,
+    out_interface: str = None,
+    not_out_interface: str = None,
     # After-rule arguments
-    to_destination=None,
-    to_source=None,
-    to_ports=None,
-    log_prefix=None,
+    to_destination: str = None,
+    to_source: str = None,
+    to_ports: int = None,
+    log_prefix: str = None,
     # Extras and extra shortcuts
-    destination_port=None,
-    source_port=None,
-    extras="",
+    destination_port: int = None,
+    source_port: int = None,
+    extras: str = "",
 ):
     """
     Add/remove iptables rules.
