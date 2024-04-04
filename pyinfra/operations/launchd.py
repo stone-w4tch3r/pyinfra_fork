@@ -11,10 +11,10 @@ from .util.service import handle_service_control
 
 @operation()
 def service(
-    service,
+    service: str,
     running=True,
     restarted=False,
-    command=None,
+    command: str = None,
 ):
     """
     Manage the state of systemd managed services.
@@ -33,11 +33,8 @@ def service(
         service,
         host.get_fact(LaunchdStatus),
         "launchctl {1} {0}",
-        # No support for restart/reload/command
         running,
-        None,
-        None,
-        None,
+        # No support for restart/reload/command
     )
 
     # No restart command, so just stop/start

@@ -937,7 +937,7 @@ def user(
     ensure_home=True,
     create_home=False,
     system=False,
-    uid: int | str = None,
+    uid: int = None,
     comment: str = None,
     add_deploy_dir=True,
     unique=True,
@@ -1223,7 +1223,7 @@ def security_limit(
     domain: str,
     limit_type: str,
     item: str,
-    value: str | int,
+    value: int,
 ):
     """
     Edit /etc/security/limits.conf configuration.
@@ -1242,7 +1242,7 @@ def security_limit(
             domain='*',
             limit_type='soft',
             item='nofile',
-            value='1024',
+            value=1024,
         )
     """
 

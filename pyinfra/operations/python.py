@@ -2,11 +2,15 @@
 The Python module allows you to execute Python code within the context of a deploy.
 """
 
+from inspect import getfullargspec
+from typing import Callable
+
+from pyinfra import logger
 from pyinfra.api import FunctionCommand, operation
 
 
 @operation(is_idempotent=False, _set_in_op=False)
-def call(function, *args, **kwargs):
+def call(function: Callable, *args, **kwargs):
     """
     Execute a Python function within a deploy.
 
@@ -43,7 +47,7 @@ def call(function, *args, **kwargs):
 
 
 @operation(is_idempotent=False, _set_in_op=False)
-def raise_exception(exception, *args, **kwargs):
+def raise_exception(exception: Exception, *args, **kwargs):
     """
     Raise a Python exception within a deploy.
 
