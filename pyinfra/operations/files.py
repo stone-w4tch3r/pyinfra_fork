@@ -1009,7 +1009,7 @@ def template(
     group: str = None,
     mode: str = None,
     create_remote_dir=True,
-    **data
+    **data,
 ):
     '''
     Generate a template using jinja2 and write it to the remote system.

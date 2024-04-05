@@ -55,7 +55,7 @@ def ensure_packages(
     latest=False,
     upgrade_command: str = None,
     version_join: str = None,
-    expand_package_fact: Callable[[str], list[str]] = None
+    expand_package_fact: Callable[[str], list[str]] = None,
 ):
     """
     Handles this common scenario:
@@ -175,13 +175,7 @@ def ensure_packages(
         )
 
 
-def ensure_rpm(
-    state: State,
-    host: Host,
-    source: str,
-    present: bool,
-    package_manager_command: str
-):
+def ensure_rpm(state: State, host: Host, source: str, present: bool, package_manager_command: str):
     original_source = source
 
     # If source is a url
