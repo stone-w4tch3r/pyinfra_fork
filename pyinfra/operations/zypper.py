@@ -2,14 +2,13 @@ from pyinfra import host, state
 from pyinfra.api import operation
 from pyinfra.facts.rpm import RpmPackages
 
-from . import files
 from .util.packaging import ensure_packages, ensure_rpm, ensure_yum_repo
 from .yum import key as yum_key
 
 key = yum_key
 
 
-@operation
+@operation()
 def repo(
     src,
     baseurl=None,
@@ -56,9 +55,7 @@ def repo(
     """
 
     yield from ensure_yum_repo(
-        state,
         host,
-        files,
         src,
         baseurl,
         present,
@@ -71,7 +68,7 @@ def repo(
     )
 
 
-@operation
+@operation()
 def rpm(src, present=True):
     # NOTE: if updating this docstring also update `dnf.rpm`
     """
@@ -94,7 +91,7 @@ def rpm(src, present=True):
         )
     """
 
-    yield from ensure_rpm(state, host, files, src, present, "zypper --non-interactive")
+    yield from ensure_rpm(host, src, present, "zypper --non-interactive")
 
 
 @operation(is_idempotent=False)
@@ -106,20 +103,20 @@ def update():
     yield "zypper update -y"
 
 
-_update = update  # noqa: E305 (for use below where update is a kwarg)
+_update = update._inner  # noqa: E305 (for use below where update is a kwarg)
 
 
-@operation
+@operation()
 def packages(
-    packages=None,
+    packages: str | list[str] = None,
     present=True,
     latest=False,
     update=False,
     clean=False,
-    extra_global_install_args=None,
-    extra_install_args=None,
-    extra_global_uninstall_args=None,
-    extra_uninstall_args=None,
+    extra_global_install_args: str = None,
+    extra_install_args: str = None,
+    extra_global_uninstall_args: str = None,
+    extra_uninstall_args: str = None,
 ):
     """
     Install/remove/update zypper packages & updates.

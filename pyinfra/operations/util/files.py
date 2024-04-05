@@ -4,13 +4,13 @@ from datetime import datetime
 from pyinfra.api import QuoteString, StringCommand
 
 
-def unix_path_join(*parts):
-    parts = list(parts)
+def unix_path_join(*path_parts) -> str:
+    parts = list(path_parts)
     parts[0:-1] = [part.rstrip("/") for part in parts[0:-1]]
     return "/".join(parts)
 
 
-def ensure_mode_int(mode):
+def ensure_mode_int(mode: str | int | None) -> int | str | None:
     # Already an int (/None)?
     if isinstance(mode, int) or mode is None:
         return mode
@@ -26,18 +26,18 @@ def ensure_mode_int(mode):
     return mode
 
 
-def get_timestamp():
+def get_timestamp() -> str:
     return datetime.now().strftime("%y%m%d%H%M")
 
 
 def sed_replace(
-    filename,
-    line,
-    replace,
-    flags=None,
+    filename: str,
+    line: str,
+    replace: str,
+    flags: list[str] = None,
     backup=False,
     interpolate_variables=False,
-):
+) -> StringCommand:
     flags = "".join(flags) if flags else ""
 
     line = line.replace("/", r"\/")
@@ -73,7 +73,7 @@ def sed_replace(
     return sed_command
 
 
-def chmod(target, mode, recursive=False):
+def chmod(target: str, mode: str, recursive=False) -> StringCommand:
     args = ["chmod"]
     if recursive:
         args.append("-R")
@@ -83,7 +83,9 @@ def chmod(target, mode, recursive=False):
     return StringCommand(" ".join(args), QuoteString(target))
 
 
-def chown(target, user, group=None, recursive=False, dereference=True):
+def chown(
+    target: str, user: str, group: str = None, recursive=False, dereference=True
+) -> StringCommand:
     command = "chown"
     user_group = None
 
@@ -107,7 +109,7 @@ def chown(target, user, group=None, recursive=False, dereference=True):
     return StringCommand(" ".join(args), user_group, QuoteString(target))
 
 
-def adjust_regex(line, escape_regex_characters):
+def adjust_regex(line: str, escape_regex_characters: bool) -> str:
     """
     Ensure the regex starts with '^' and ends with '$' and escape regex characters if requested
     """

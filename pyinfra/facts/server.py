@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import os
 import re
 import shutil
 from datetime import datetime
 from tempfile import mkdtemp
+from typing import Dict, List, NewType, Optional, Union
 
 from dateutil.parser import parse as parse_date
 from distro import distro
+from typing_extensions import NotRequired, TypedDict
 
 from pyinfra.api import FactBase, ShortFactBase
 from pyinfra.api.util import try_int
@@ -37,6 +41,14 @@ class Path(FactBase):
     command = "echo $PATH"
 
 
+class TmpDir(FactBase):
+    """
+    Returns the temporary directory of the current server, if configured.
+    """
+
+    command = "echo $TMPDIR"
+
+
 class Hostname(FactBase):
     """
     Returns the current hostname of the server.
@@ -62,7 +74,7 @@ class KernelVersion(FactBase):
 
 
 # Deprecated/renamed -> Kernel
-class Os(FactBase):
+class Os(FactBase[str]):
     """
     Returns the OS name according to ``uname``.
 
@@ -74,7 +86,7 @@ class Os(FactBase):
 
 
 # Deprecated/renamed -> KernelVersion
-class OsVersion(FactBase):
+class OsVersion(FactBase[str]):
     """
     Returns the OS version according to ``uname``.
 
@@ -85,7 +97,7 @@ class OsVersion(FactBase):
     command = "uname -r"
 
 
-class Arch(FactBase):
+class Arch(FactBase[str]):
     """
     Returns the system architecture according to ``uname``.
     """
@@ -95,7 +107,7 @@ class Arch(FactBase):
     command = "uname -m"
 
 
-class Command(FactBase):
+class Command(FactBase[str]):
     """
     Returns the raw output lines of a given command.
     """
@@ -105,7 +117,7 @@ class Command(FactBase):
         return command
 
 
-class Which(FactBase):
+class Which(FactBase[Optional[str]]):
     """
     Returns the path of a given command, if available.
     """
@@ -115,7 +127,7 @@ class Which(FactBase):
         return "which {0} || true".format(command)
 
 
-class Date(FactBase):
+class Date(FactBase[datetime]):
     """
     Returns the current datetime on the server.
     """
@@ -124,11 +136,11 @@ class Date(FactBase):
     default = datetime.now
 
     @staticmethod
-    def process(output):
+    def process(output) -> datetime:
         return datetime.strptime(output[0], ISO_DATE_FORMAT)
 
 
-class MacosVersion(FactBase):
+class MacosVersion(FactBase[str]):
     """
     Returns the installed MacOS version.
     """
@@ -137,7 +149,13 @@ class MacosVersion(FactBase):
     requires_command = "sw_vers"
 
 
-class Mounts(FactBase):
+class MountsDict(TypedDict):
+    device: str
+    type: str
+    options: list[str]
+
+
+class Mounts(FactBase[Dict[str, MountsDict]]):
     """
     Returns a dictionary of mounted filesystems and information.
 
@@ -159,8 +177,8 @@ class Mounts(FactBase):
     default = dict
 
     @staticmethod
-    def process(output):
-        devices = {}
+    def process(output) -> dict[str, MountsDict]:
+        devices: dict[str, MountsDict] = {}
 
         for line in output:
             is_map = False
@@ -285,8 +303,13 @@ class Sysctl(FactBase):
         }
     """
 
-    command = "sysctl -a"
     default = dict
+
+    @staticmethod
+    def command(keys=None):
+        if keys is None:
+            return "sysctl -a"
+        return f"sysctl {' '.join(keys)}"
 
     @staticmethod
     def process(output):
@@ -317,7 +340,7 @@ class Sysctl(FactBase):
         return sysctls
 
 
-class Groups(FactBase):
+class Groups(FactBase[List[str]]):
     """
     Returns a list of groups on the system.
     """
@@ -326,8 +349,8 @@ class Groups(FactBase):
     default = list
 
     @staticmethod
-    def process(output):
-        groups = []
+    def process(output) -> list[str]:
+        groups: list[str] = []
 
         for line in output:
             if ":" in line:
@@ -336,7 +359,20 @@ class Groups(FactBase):
         return groups
 
 
-class Crontab(FactBase):
+CrontabCommand = NewType("CrontabCommand", int)
+
+
+class CrontabDict(TypedDict):
+    minute: NotRequired[Union[int, str]]
+    hour: NotRequired[Union[int, str]]
+    month: NotRequired[Union[int, str]]
+    day_of_month: NotRequired[Union[int, str]]
+    day_of_week: NotRequired[Union[int, str]]
+    comments: Optional[list[str]]
+    special_time: NotRequired[str]
+
+
+class Crontab(FactBase[Dict[CrontabCommand, CrontabDict]]):
     """
     Returns a dictionary of cron command -> execution time.
 
@@ -368,7 +404,7 @@ class Crontab(FactBase):
 
     @staticmethod
     def process(output):
-        crons = {}
+        crons: dict[Command, CrontabDict] = {}
         current_comments = []
 
         for line in output:
@@ -417,6 +453,7 @@ class Users(FactBase):
                 "uid": user_id,
                 "gid": main_user_group_id,
                 "lastlog": last_login_time,
+                "password": encrypted_password,
             },
         }
     """
@@ -426,7 +463,8 @@ class Users(FactBase):
             ENTRY=`grep ^$i: /etc/passwd`;
             LASTLOG_RAW=`(lastlog -u $i 2> /dev/null || lastlogin $i 2> /dev/null)`;
             LASTLOG=`echo $LASTLOG_RAW | grep ^$i | tr -s ' '`;
-            echo "$ENTRY|`id -gn $i`|`id -Gn $i`|$LASTLOG";
+            PASSWORD=`grep ^$i: /etc/shadow | cut -d: -f2`;
+            echo "$ENTRY|`id -gn $i`|`id -Gn $i`|$LASTLOG|$PASSWORD";
         done
     """.strip()
 
@@ -437,7 +475,7 @@ class Users(FactBase):
         rex = r"[A-Z][a-z]{2} [A-Z][a-z]{2} {1,2}\d+ .+$"
 
         for line in output:
-            entry, group, user_groups, lastlog = line.split("|")
+            entry, group, user_groups, lastlog, password = line.rsplit("|", 4)
 
             if entry:
                 # Parse out the comment/home/shell
@@ -470,12 +508,20 @@ class Users(FactBase):
                     "gid": int(entries[3]),
                     "lastlog": raw_login_time,
                     "login_time": login_time,
+                    "password": password,
                 }
 
         return users
 
 
-class LinuxDistribution(FactBase):
+class LinuxDistributionDict(TypedDict):
+    name: Optional[str]
+    major: Optional[int]
+    minor: Optional[int]
+    release_meta: Dict
+
+
+class LinuxDistribution(FactBase[LinuxDistributionDict]):
     """
     Returns a dict of the Linux distribution version. Ubuntu, Debian, CentOS,
     Fedora & Gentoo currently. Also contains any key/value items located in
@@ -513,7 +559,7 @@ class LinuxDistribution(FactBase):
     }
 
     @staticmethod
-    def default():
+    def default() -> LinuxDistributionDict:
         return {
             "name": None,
             "major": None,
@@ -521,7 +567,7 @@ class LinuxDistribution(FactBase):
             "release_meta": {},
         }
 
-    def process(self, output):
+    def process(self, output) -> LinuxDistributionDict:
         parts = {}
         for part in "\n".join(output).strip().split("---"):
             if not part.strip():
@@ -575,7 +621,7 @@ class LinuxDistribution(FactBase):
         return release_info
 
 
-class LinuxName(ShortFactBase):
+class LinuxName(ShortFactBase[str]):
     """
     Returns the name of the Linux distribution. Shortcut for
     ``host.get_fact(LinuxDistribution)['name']``.
@@ -588,7 +634,11 @@ class LinuxName(ShortFactBase):
         return data["name"]
 
 
-class Selinux(FactBase):
+class SelinuxDict(TypedDict):
+    mode: Optional[str]
+
+
+class Selinux(FactBase[SelinuxDict]):
     """
     Discovers the SELinux related facts on the target host.
 
@@ -603,12 +653,12 @@ class Selinux(FactBase):
     requires_command = "sestatus"
 
     @staticmethod
-    def default():
+    def default() -> SelinuxDict:
         return {
             "mode": None,
         }
 
-    def process(self, output):
+    def process(self, output) -> SelinuxDict:
         selinux_info = self.default()
 
         match = re.match(r"^SELinux status:\s+(\S+)", "\n".join(output))
@@ -621,7 +671,7 @@ class Selinux(FactBase):
         return selinux_info
 
 
-class LinuxGui(FactBase):
+class LinuxGui(FactBase[List[str]]):
     """
     Returns a list of available Linux GUIs.
     """
@@ -637,7 +687,7 @@ class LinuxGui(FactBase):
         "/usr/bin/xfce4-session": "XFCE 4",
     }
 
-    def process(self, output):
+    def process(self, output) -> list[str]:
         gui_names = []
 
         for line in output:
@@ -648,7 +698,7 @@ class LinuxGui(FactBase):
         return gui_names
 
 
-class HasGui(ShortFactBase):
+class HasGui(ShortFactBase[bool]):
     """
     Returns a boolean indicating the remote side has GUI capabilities. Linux only.
     """
@@ -656,11 +706,11 @@ class HasGui(ShortFactBase):
     fact = LinuxGui
 
     @staticmethod
-    def process_data(data):
+    def process_data(data) -> bool:
         return len(data) > 0
 
 
-class Locales(FactBase):
+class Locales(FactBase[List[str]]):
     """
     Returns installed locales on the target host.
 
@@ -673,7 +723,89 @@ class Locales(FactBase):
     requires_command = "locale"
     default = list
 
-    def process(self, output):
+    def process(self, output) -> list[str]:
         # replace utf8 with UTF-8 to match names in /etc/locale.gen
         # return a list of enabled locales
         return [line.replace("utf8", "UTF-8") for line in output]
+
+
+class SecurityLimits(FactBase):
+    """
+    Returns a list of security limits on the target host.
+
+    .. code:: python
+
+        [
+            {
+                "domain": "*",
+                "limit_type": "soft",
+                "item": "nofile",
+                "value": "1048576"
+            },
+            {
+                "domain": "*",
+                "limit_type": "hard",
+                "item": "nofile",
+                "value": "1048576"
+            },
+            {
+                "domain": "root",
+                "limit_type": "soft",
+                "item": "nofile",
+                "value": "1048576"
+            },
+            {
+                "domain": "root",
+                "limit_type": "hard",
+                "item": "nofile",
+                "value": "1048576"
+            },
+            {
+                "domain": "*",
+                "limit_type": "soft",
+                "item": "memlock",
+                "value": "unlimited"
+            },
+            {
+                "domain": "*",
+                "limit_type": "hard",
+                "item": "memlock",
+                "value": "unlimited"
+            },
+            {
+                "domain": "root",
+                "limit_type": "soft",
+                "item": "memlock",
+                "value": "unlimited"
+            },
+            {
+                "domain": "root",
+                "limit_type": "hard",
+                "item": "memlock",
+                "value": "unlimited"
+            }
+        ]
+    """
+
+    command = "cat /etc/security/limits.conf"
+    default = list
+
+    def process(self, output):
+        limits = []
+
+        for line in output:
+            if line.startswith("#") or not len(line.strip()):
+                continue
+
+            domain, limit_type, item, value = line.split()
+
+            limits.append(
+                {
+                    "domain": domain,
+                    "limit_type": limit_type,
+                    "item": item,
+                    "value": value,
+                },
+            )
+
+        return limits

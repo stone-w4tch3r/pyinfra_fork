@@ -2,15 +2,13 @@
 The Python module allows you to execute Python code within the context of a deploy.
 """
 
-from inspect import getfullargspec
+from typing import Callable
 
-from pyinfra import logger
 from pyinfra.api import FunctionCommand, operation
-from pyinfra.api.util import get_call_location
 
 
-@operation(is_idempotent=False)
-def call(function, *args, **kwargs):
+@operation(is_idempotent=False, _set_in_op=False)
+def call(function: Callable, *args, **kwargs):
     """
     Execute a Python function within a deploy.
 
@@ -43,20 +41,11 @@ def call(function, *args, **kwargs):
 
     """
 
-    argspec = getfullargspec(function)
-    if "state" in argspec.args and "host" in argspec.args:
-        logger.warning(
-            "Callback functions used in `python.call` operations no "
-            f"longer take `state` and `host` arguments: {get_call_location(frame_offset=3)}",
-        )
-
-    kwargs.pop("state", None)
-    kwargs.pop("host", None)
     yield FunctionCommand(function, args, kwargs)
 
 
-@operation(is_idempotent=False)
-def raise_exception(exception, *args, **kwargs):
+@operation(is_idempotent=False, _set_in_op=False)
+def raise_exception(exception: Exception, *args, **kwargs):
     """
     Raise a Python exception within a deploy.
 
@@ -78,6 +67,4 @@ def raise_exception(exception, *args, **kwargs):
     def raise_exc(*args, **kwargs):  # pragma: no cover
         raise exception(*args, **kwargs)
 
-    kwargs.pop("state", None)
-    kwargs.pop("host", None)
     yield FunctionCommand(raise_exc, args, kwargs)

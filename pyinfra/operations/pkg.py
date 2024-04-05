@@ -11,8 +11,8 @@ from pyinfra.facts.server import Arch, Os, OsVersion, Which
 from .util.packaging import ensure_packages
 
 
-@operation
-def packages(packages=None, present=True, pkg_path=None):
+@operation()
+def packages(packages: str | list[str] = None, present=True, pkg_path: str = None):
     """
     Install/remove/update pkg packages. This will use ``pkg ...`` where available
     (FreeBSD) and the ``pkg_*`` variants elsewhere.

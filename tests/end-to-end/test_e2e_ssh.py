@@ -12,7 +12,7 @@ DOCKER_IMAGE = (
 )
 
 PYINFRA_COMMAND = (
-    "pyinfra -v localhost "
+    "pyinfra -y -v localhost "
     "--ssh-port 2222 "
     "--ssh-user pyinfra "
     "--ssh-password password "
@@ -47,11 +47,11 @@ def run_docker_ssh_server(helpers):
 @pytest.mark.end_to_end_ssh
 def test_e2e_ssh_sudo_password(helpers):
     helpers.run_check_output(
-        f"{PYINFRA_COMMAND} server.shell echo _sudo=True _use_sudo_password=password",
+        f"{PYINFRA_COMMAND} server.shell echo _sudo=True _sudo_password=password",
         expected_lines=["localhost] Success"],
     )
     helpers.run_check_output(
-        f"{PYINFRA_COMMAND} server.shell echo _sudo=True _use_sudo_password=wrongpassword",
+        f"{PYINFRA_COMMAND} server.shell echo _sudo=True _sudo_password=wrongpassword",
         expected_lines=["localhost] Error"],
         expected_exit_code=1,
     )
@@ -130,37 +130,4 @@ def test_int_local_line_no_changes(helpers):
     helpers.run_check_output(  # second run replace the line = no changes
         f"{PYINFRA_COMMAND} files.line _testfile someline replace=anotherline",
         expected_lines=["localhost] No changes"],
-    )
-
-
-@pytest.mark.end_to_end
-@pytest.mark.end_to_end_ssh
-def test_int_local_pre_post_conditions(helpers):
-    helpers.run_check_output(
-        (
-            f"{PYINFRA_COMMAND} server.shell uptime "
-            "precondition='exit 0' "
-            "postcondition='exit 0'"
-        ),
-        expected_lines=["localhost] Success"],
-    )
-
-
-@pytest.mark.end_to_end
-@pytest.mark.end_to_end_ssh
-def test_int_local_failed_precondition(helpers):
-    helpers.run_check_output(
-        f"{PYINFRA_COMMAND} server.shell uptime precondition='exit 1'",
-        expected_lines=["localhost] Error: precondition failed: exit 1"],
-        expected_exit_code=1,
-    )
-
-
-@pytest.mark.end_to_end
-@pytest.mark.end_to_end_ssh
-def test_int_local_failed_postcondition(helpers):
-    helpers.run_check_output(
-        f"{PYINFRA_COMMAND} server.shell uptime postcondition='exit 1'",
-        expected_lines=["localhost] Error: postcondition failed: exit 1"],
-        expected_exit_code=1,
     )

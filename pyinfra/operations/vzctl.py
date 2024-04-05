@@ -8,7 +8,7 @@ from pyinfra.facts.vzctl import OpenvzContainers
 
 
 @operation(is_idempotent=False)
-def start(ctid, force=False):
+def start(ctid: str, force=False):
     """
     Start OpenVZ containers.
 
@@ -25,7 +25,7 @@ def start(ctid, force=False):
 
 
 @operation(is_idempotent=False)
-def stop(ctid):
+def stop(ctid: str):
     """
     Stop OpenVZ containers.
 
@@ -38,7 +38,7 @@ def stop(ctid):
 
 
 @operation(is_idempotent=False)
-def restart(ctid, force=False):
+def restart(ctid: str, force=False):
     """
     Restart OpenVZ containers.
 
@@ -46,12 +46,12 @@ def restart(ctid, force=False):
     + force: whether to force container start
     """
 
-    yield from stop(ctid)
-    yield from start(ctid, force=force)
+    yield from stop._inner(ctid=ctid)
+    yield from start._inner(ctid=ctid, force=force)
 
 
 @operation(is_idempotent=False)
-def mount(ctid):
+def mount(ctid: str):
     """
     Mount OpenVZ container filesystems.
 
@@ -62,7 +62,7 @@ def mount(ctid):
 
 
 @operation(is_idempotent=False)
-def unmount(ctid):
+def unmount(ctid: str):
     """
     Unmount OpenVZ container filesystems.
 
@@ -73,7 +73,7 @@ def unmount(ctid):
 
 
 @operation(is_idempotent=False)
-def delete(ctid):
+def delete(ctid: str):
     """
     Delete OpenVZ containers.
 
@@ -84,7 +84,7 @@ def delete(ctid):
 
 
 @operation(is_idempotent=False)
-def create(ctid, template=None):
+def create(ctid: str, template: str = None):
     """
     Create OpenVZ containers.
 
@@ -107,7 +107,7 @@ def create(ctid, template=None):
 
 
 @operation(is_idempotent=False)
-def set(ctid, save=True, **settings):
+def set(ctid: str, save=True, **settings):
     """
     Set OpenVZ container details.
 

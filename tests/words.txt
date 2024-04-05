@@ -28,7 +28,9 @@ IXOTH
 IXUSR
 Launchd
 Openvz
+TMPDIR
 UNIXCONFDIR
+abstractmethod
 acl
 addrs
 addsitedir
@@ -62,6 +64,7 @@ blocksize
 bsdinit
 build
 bytecode
+bytesio
 ccommands
 cd
 centos
@@ -73,6 +76,7 @@ choco
 chown
 chroot
 cim
+cleandoc
 cmds
 commitish
 comparator
@@ -89,6 +93,7 @@ cron
 crons
 crontab
 ctid
+ctime
 ctrl
 ctx
 ctype
@@ -122,6 +127,7 @@ e501
 ed25519
 endian
 entrypoint
+envvar
 epel
 excuted
 exe
@@ -146,6 +152,7 @@ gaierror
 generic
 getargspec
 getcallargs
+getdoc
 getfo
 getframeinfo
 getfullargspec
@@ -172,12 +179,14 @@ hostport
 hotfixes
 i100
 identityfile
+ifconfig
 ifilterfalse
 iglob
 ignoretz
 ini
 initd
 initrd
+intstatus
 ip6tables
 ipdb
 iproute2
@@ -220,13 +229,16 @@ macos
 md5sum
 mech
 memoize
+memoized
 modprobe
 motd
+mtu
 mult
 mv
 mware
 nameserver
 netboot
+netmask
 netsh
 nettools
 networkadapterconfiguration
@@ -249,6 +261,7 @@ openvz
 osversion
 pacman
 paramiko
+paramspec
 pardir
 pathlib
 pathname
@@ -330,6 +343,8 @@ ssl
 status
 stdlib
 stringify
+stringio
+strs
 su
 subclassed
 subclassing
@@ -361,6 +376,7 @@ tls
 todo
 topdown
 tty
+typeguard
 ubuntu
 ubuntu18
 udp
@@ -369,6 +385,7 @@ ufw
 uname
 unignored
 unmount
+unresposivehost
 up
 up2
 useradd
@@ -378,6 +395,7 @@ v0
 v1
 v2
 v3
+v4
 vagrantfile
 venv
 virtualbox

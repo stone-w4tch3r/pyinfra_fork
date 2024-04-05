@@ -9,8 +9,8 @@ from pyinfra.facts.choco import ChocoPackages
 from .util.packaging import ensure_packages
 
 
-@operation
-def packages(packages=None, present=True, latest=False):
+@operation()
+def packages(packages: str | list[str] = None, present=True, latest=False):
     """
     Add/remove/update ``choco`` packages.
 

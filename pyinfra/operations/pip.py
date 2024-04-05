@@ -12,10 +12,10 @@ from . import files
 from .util.packaging import ensure_packages
 
 
-@operation
+@operation()
 def virtualenv(
-    path,
-    python=None,
+    path: str,
+    python: str = None,
     venv=False,
     site_packages=False,
     always_copy=False,
@@ -46,7 +46,7 @@ def virtualenv(
 
     if present is False:
         if host.get_fact(File, path=activate_script_path):
-            yield from files.directory(path, present=False)
+            yield from files.directory._inner(path, present=False)
         else:
             host.noop("virtualenv {0} does not exist".format(path))
 
@@ -72,23 +72,17 @@ def virtualenv(
             command.append(path)
 
             yield " ".join(command)
-
-            host.create_fact(
-                File,
-                kwargs={"path": activate_script_path},
-                data={"user": None, "group": None},
-            )
         else:
             host.noop("virtualenv {0} exists".format(path))
 
 
-_virtualenv = virtualenv  # noqa
+_virtualenv = virtualenv._inner  # noqa
 
 
-@operation
+@operation()
 def venv(
-    path,
-    python=None,
+    path: str,
+    python: str = None,
     site_packages=False,
     always_copy=False,
     present=True,
@@ -111,7 +105,7 @@ def venv(
         )
     """
 
-    yield from virtualenv(
+    yield from _virtualenv(
         venv=True,
         path=path,
         python=python,
@@ -121,16 +115,16 @@ def venv(
     )
 
 
-@operation
+@operation()
 def packages(
-    packages=None,
+    packages: str | list[str] = None,
     present=True,
     latest=False,
-    requirements=None,
+    requirements: str = None,
     pip="pip",
-    virtualenv=None,
-    virtualenv_kwargs=None,
-    extra_install_args=None,
+    virtualenv: str = None,
+    virtualenv_kwargs: dict = None,
+    extra_install_args: str = None,
 ):
     """
     Install/remove/update pip packages.
@@ -173,10 +167,10 @@ def packages(
         virtualenv = virtualenv.rstrip("/")
         pip = "{0}/bin/{1}".format(virtualenv, pip)
 
-    install_command = [pip, "install"]
+    install_command_args = [pip, "install"]
     if extra_install_args:
-        install_command.append(extra_install_args)
-    install_command = " ".join(install_command)
+        install_command_args.append(extra_install_args)
+    install_command = " ".join(install_command_args)
 
     uninstall_command = " ".join([pip, "uninstall", "--yes"])
 
@@ -190,6 +184,11 @@ def packages(
     # Handle passed in packages
     if packages:
         current_packages = host.get_fact(PipPackages, pip=pip)
+
+        # PEP-0426 states that Python packages should be compared using lowercase, so lowercase both
+        # the input packages and the fact packages before comparison.
+        packages = [pkg.lower() for pkg in packages]
+        current_packages = {pkg.lower(): versions for pkg, versions in current_packages.items()}
 
         yield from ensure_packages(
             host,

@@ -9,8 +9,8 @@ from pyinfra.facts.cargo import CargoPackages
 from .util.packaging import ensure_packages
 
 
-@operation
-def packages(packages=None, present=True, latest=False):
+@operation()
+def packages(packages: str | list[str] = None, present=True, latest=False):
     """
     Install/remove/update cargo packages.
 

@@ -13,12 +13,13 @@ from pyinfra.api.connect import connect_all, disconnect_all
 from pyinfra.api.exceptions import NoGroupError, PyinfraError
 from pyinfra.api.facts import get_facts
 from pyinfra.api.operations import run_ops
+from pyinfra.api.state import StateStage
 from pyinfra.api.util import get_kwargs_str
 from pyinfra.context import ctx_config, ctx_inventory, ctx_state
 from pyinfra.operations import server
 
 from .commands import get_facts_and_args, get_func_and_args
-from .exceptions import CliError, UnexpectedExternalError, UnexpectedInternalError
+from .exceptions import CliError, UnexpectedExternalError, UnexpectedInternalError, WrappedError
 from .inventory import make_inventory
 from .log import setup_logging
 from .prints import (
@@ -26,7 +27,6 @@ from .prints import (
     print_inventory,
     print_meta,
     print_results,
-    print_state_facts,
     print_state_operations,
     print_support_info,
 )
@@ -44,7 +44,7 @@ def _print_support(ctx, param, value):
     if not value:
         return
 
-    click.echo("--> Support information:", err=True)
+    logger.info("--> Support information:")
     print_support_info()
     ctx.exit()
 
@@ -63,6 +63,15 @@ def _print_support(ctx, param, value):
     is_flag=True,
     default=False,
     help="Don't execute operations on the target hosts.",
+)
+@click.option(
+    "-y",
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Execute operations immediately on hosts without prompt or checking for changes.",
+    envvar="PYINFRA_YES",
+    show_envvar=True,
 )
 @click.option(
     "--limit",
@@ -132,11 +141,6 @@ def _print_support(ctx, param, value):
     help="SSH Private key password.",
 )
 @click.option("--ssh-password", "--password", "ssh_password", help="SSH password.")
-# WinRM connector args
-@click.option("--winrm-username", help="WINRM user to connect as.")
-@click.option("--winrm-password", help="WINRM password.")
-@click.option("--winrm-port", help="WINRM port to connect to.")
-@click.option("--winrm-transport", help="WINRM transport for use.")
 # Eager commands (pyinfra --support)
 @click.option(
     "--support",
@@ -156,7 +160,13 @@ def _print_support(ctx, param, value):
     "--debug",
     is_flag=True,
     default=False,
-    help="Print debug info.",
+    help="Print debug logs from pyinfra.",
+)
+@click.option(
+    "--debug-all",
+    is_flag=True,
+    default=False,
+    help="Print debug logs from all packages including pyinfra.",
 )
 @click.option(
     "--debug-facts",
@@ -216,26 +226,17 @@ def cli(*args, **kwargs):
 
     try:
         _main(*args, **kwargs)
-
+    except (CliError, UnexpectedExternalError):
+        raise
     except PyinfraError as e:
-        # Re-raise any internal exceptions that aren't handled by click as
-        # CliErrors which are.
-        if not isinstance(e, click.ClickException):
-            message = getattr(e, "message", e.args[0])
-            raise CliError(message)
-
-        raise
-
-    except UnexpectedExternalError:
-        # Pass unexpected external exceptions through as-is
-        raise
-
+        # Re-raise "expected" pyinfra exceptions with our click exception wrapper
+        raise WrappedError(e)
     except Exception as e:
         # Re-raise any unexpected internal exceptions as UnexpectedInternalError
         raise UnexpectedInternalError(e)
-
     finally:
         if ctx_state.isset() and state.initialised:
+            logger.info("--> Disconnecting from hosts...")
             # Triggers any executor disconnect requirements
             disconnect_all(state)
 
@@ -258,10 +259,6 @@ def _main(
     ssh_key,
     ssh_key_password: str,
     ssh_password: str,
-    winrm_username: str,
-    winrm_password: str,
-    winrm_port,
-    winrm_transport,
     shell_executable,
     sudo: bool,
     sudo_user: str,
@@ -273,14 +270,16 @@ def _main(
     group_data,
     config_filename: str,
     dry: bool,
+    yes: bool,
     limit: Iterable,
     no_wait: bool,
     serial: bool,
     quiet: bool,
     debug: bool,
+    debug_all: bool,
     debug_facts: bool,
     debug_operations: bool,
-    support: bool = None,
+    support: bool = False,
 ):
     # Setup working directory
     #
@@ -289,7 +288,7 @@ def _main(
 
     # Setup logging & Bootstrap/Venv
     #
-    _setup_log_level(debug, quiet)
+    _setup_log_level(debug, debug_all)
     init_virtualenv()
 
     # Check operations are valid and setup commands
@@ -298,7 +297,7 @@ def _main(
 
     # Setup state, config & inventory
     #
-    state = _setup_state(verbosity, quiet)
+    state = _setup_state(verbosity, quiet, yes)
     config = Config()
     ctx_config.set(config)
 
@@ -314,7 +313,7 @@ def _main(
         parallel,
         shell_executable,
         fail_percent,
-        quiet,
+        yes,
     )
     override_data = _set_override_data(
         data,
@@ -323,15 +322,14 @@ def _main(
         ssh_key_password,
         ssh_port,
         ssh_password,
-        winrm_username,
-        winrm_password,
-        winrm_port,
-        winrm_transport,
     )
+
+    if yes is False:
+        _set_fail_prompts(state, config)
 
     # Load up the inventory from the filesystem
     #
-    echo_msg("--> Loading inventory...", quiet)
+    logger.info("--> Loading inventory...")
     inventory = make_inventory(
         inventory,
         cwd=state.cwd,
@@ -352,20 +350,27 @@ def _main(
 
     # Connect to the hosts & start handling the user commands
     #
-    echo_msg("--> Connecting to hosts...", quiet)
+    logger.info("--> Connecting to hosts...")
+    state.set_stage(StateStage.Connect)
     connect_all(state)
-    state, config = _handle_commands(state, config, command, original_operations, operations, quiet)
+
+    logger.info("--> Preparing operations...")
+    state.set_stage(StateStage.Prepare)
+    can_diff, state, config = _handle_commands(
+        state, config, command, original_operations, operations
+    )
 
     # Print proposed changes, execute unless --dry, and exit
     #
-    echo_msg("--> Proposed changes:", quiet)
-    print_meta(state)
+    if can_diff:
+        if yes:
+            logger.info("--> Skipping change detection")
+        else:
+            logger.info("--> Detected changes:")
+            print_meta(state)
 
     # If --debug-facts or --debug-operations, print and exit
     if debug_facts or debug_operations:
-        if debug_facts:
-            print_state_facts(state)
-
         if debug_operations:
             print_state_operations(state)
 
@@ -374,33 +379,67 @@ def _main(
     if dry:
         _exit()
 
-    echo_msg(quiet=quiet)
-    echo_msg("--> Beginning operation run...", quiet)
+    if (
+        can_diff
+        and not yes
+        and not _do_confirm("Detected changes displayed above, skip this step with -y")
+    ):
+        _exit()
 
+    logger.info("--> Beginning operation run...")
+    state.set_stage(StateStage.Execute)
     run_ops(state, serial=serial, no_wait=no_wait)
 
-    echo_msg("--> Results:", quiet)
+    logger.info("--> Results:")
+    state.set_stage(StateStage.Disconnect)
     print_results(state)
     _exit()
 
 
+def _do_confirm(msg: str) -> bool:
+    click.echo(err=True)
+    click.echo(f"    {msg}", err=True)
+    warning_count = state.get_warning_counter()
+    if warning_count > 0:
+        click.secho(
+            f"    {warning_count} warnings shown during change detection, see above",
+            fg="yellow",
+            err=True,
+        )
+    confirm_msg = "    Press enter to execute..."
+    click.echo(confirm_msg, err=True, nl=False)
+    v = input()
+    if v:
+        click.echo(f"    Unexpected user input: {v}", err=True)
+        return False
+    # Go up, clear the line, go up again - as if the confirmation statement was never here!
+    click.echo(
+        "\033[1A{0}\033[1A".format("".join(" " for _ in range(len(confirm_msg)))),
+        err=True,
+        nl=False,
+    )
+    click.echo(err=True)
+    return True
+
+
 # Setup
 #
-def _setup_log_level(debug, quiet):
+def _setup_log_level(debug, debug_all):
     if not debug and not sys.warnoptions:
         warnings.simplefilter("ignore")
 
     log_level = logging.INFO
-    if debug:
+    if debug or debug_all:
         log_level = logging.DEBUG
-    elif quiet:
-        log_level = logging.WARNING
 
-    setup_logging(log_level)
+    other_log_level = None
+    if debug_all:
+        other_log_level = logging.DEBUG
+
+    setup_logging(log_level, other_log_level)
 
 
 def _validate_operations(operations, chdir):
-
     # Make a copy before we overwrite
     original_operations = operations
 
@@ -467,7 +506,7 @@ def _validate_operations(operations, chdir):
     return original_operations, operations, command, chdir
 
 
-def _set_verbosity(state, verbosity, quiet):
+def _set_verbosity(state, verbosity):
     if verbosity > 0:
         state.print_fact_info = True
         state.print_noop_info = True
@@ -481,16 +520,16 @@ def _set_verbosity(state, verbosity, quiet):
     return state
 
 
-def _setup_state(verbosity, quiet):
+def _setup_state(verbosity, quiet, yes):
     cwd = getcwd()
     if cwd not in sys.path:  # ensure cwd is present in sys.path
         sys.path.append(cwd)
 
-    state = State()
+    state = State(check_for_changes=not yes)
     state.cwd = cwd
     ctx_state.set(state)
 
-    state = _set_verbosity(state, verbosity, quiet)
+    state = _set_verbosity(state, verbosity)
     return state
 
 
@@ -504,12 +543,13 @@ def _set_config(
     parallel,
     shell_executable,
     fail_percent,
-    quiet,
+    yes,
 ):
-    echo_msg("--> Loading config...", quiet)
+    logger.info("--> Loading config...")
 
     # Load up any config.py from the filesystem
-    config_filename = path.join(state.cwd, config_filename)
+    if state.cwd:
+        config_filename = path.join(state.cwd, config_filename)
     if path.exists(config_filename):
         exec_file(config_filename)
 
@@ -548,10 +588,6 @@ def _set_override_data(
     ssh_key_password,
     ssh_port,
     ssh_password,
-    winrm_username,
-    winrm_password,
-    winrm_port,
-    winrm_transport,
 ):
     override_data = {}
 
@@ -567,15 +603,24 @@ def _set_override_data(
         ("ssh_key_password", ssh_key_password),
         ("ssh_port", ssh_port),
         ("ssh_password", ssh_password),
-        ("winrm_username", winrm_username),
-        ("winrm_password", winrm_password),
-        ("winrm_port", winrm_port),
-        ("winrm_transport", winrm_transport),
     ):
         if value:
             override_data[key] = value
 
     return override_data
+
+
+def _set_fail_prompts(state: State, config: Config) -> None:
+    # Set fail percent to zero, meaning we'll raise an exception for any fail,
+    # and we can capture + prompt the user to continue/exit.
+    config.FAIL_PERCENT = 0
+
+    def should_raise_failed_hosts(state: State) -> bool:
+        if state.current_stage == StateStage.Connect:
+            return not _do_confirm("One of more hosts failed to connect, continue?")
+        return not _do_confirm("One of more hosts failed, continue?")
+
+    state.should_raise_failed_hosts = should_raise_failed_hosts
 
 
 def _apply_inventory_limit(inventory, limit):
@@ -600,27 +645,34 @@ def _apply_inventory_limit(inventory, limit):
 
 # Operations Execution
 #
-def _handle_commands(state, config, command, original_operations, operations, quiet):
-
+def _handle_commands(state, config, command, original_operations, operations):
     if command is CliCommands.FACT:
-        state, fact_data = _run_fact_operations(state, config, operations, quiet)
+        state, fact_data = _run_fact_operations(state, config, operations)
         print_facts(fact_data)
         _exit()
 
+    can_diff = True
+
     if command == CliCommands.SHELL:
-        state = _run_exec_operations(state, config, operations, quiet)
+        state = _prepare_exec_operations(state, config, operations)
+        can_diff = False
 
     elif command == CliCommands.DEPLOY_FILES:
-        state, config, operations = _run_deploy_operations(state, config, operations, quiet)
+        state, config, operations = _prepare_deploy_operations(state, config, operations)
 
     elif command == CliCommands.FUNC:
-        state, kwargs = _run_func_operations(state, config, operations, original_operations, quiet)
+        state, kwargs = _prepare_func_operations(
+            state,
+            config,
+            operations,
+            original_operations,
+        )
 
-    return state, config
+    return can_diff, state, config
 
 
-def _run_fact_operations(state, config, operations, quiet):
-    echo_msg("--> Gathering facts...", quiet)
+def _run_fact_operations(state, config, operations):
+    logger.info("--> Gathering facts...")
 
     state.print_fact_info = True
     fact_data = {}
@@ -648,7 +700,7 @@ def _run_fact_operations(state, config, operations, quiet):
     return state, fact_data
 
 
-def _run_exec_operations(state, config, operations, quiet):
+def _prepare_exec_operations(state, config, operations):
     state.print_output = True
     load_func(
         state,
@@ -658,8 +710,8 @@ def _run_exec_operations(state, config, operations, quiet):
     return state
 
 
-def _run_deploy_operations(state, config, operations, quiet):
-    echo_msg("--> Preparing Operations...", quiet)
+def _prepare_deploy_operations(state, config, operations):
+    logger.info("--> Preparing Operations...")
 
     # Number of "steps" to make = number of files * number of hosts
     for i, filename in enumerate(operations):
@@ -675,8 +727,8 @@ def _run_deploy_operations(state, config, operations, quiet):
     return state, config, operations
 
 
-def _run_func_operations(state, config, operations, original_operations, quiet):
-    echo_msg("--> Preparing operation...", quiet)
+def _prepare_func_operations(state, config, operations, original_operations):
+    logger.info("--> Preparing operation...")
 
     op, args = operations
     args, kwargs = args
@@ -684,12 +736,3 @@ def _run_func_operations(state, config, operations, original_operations, quiet):
     load_func(state, op, *args, **kwargs)
 
     return state, kwargs
-
-
-# Utils
-#
-def echo_msg(msg=None, quiet=None):
-    if not quiet:
-        click.echo(err=True)
-    if msg:
-        click.echo(msg, err=True)

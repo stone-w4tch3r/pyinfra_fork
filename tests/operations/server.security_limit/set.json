@@ -1,0 +1,12 @@
+{
+    "kwargs": {
+        "domain": "root",
+        "limit_type": "hard",
+        "item": "memlock",
+        "value": "unlimited"
+    },
+    "facts": {"files.FindInFile": {}},
+    "commands": [
+        "echo 'root\thard\tmemlock\tunlimited' >> /etc/security/limits.conf"
+    ]
+}

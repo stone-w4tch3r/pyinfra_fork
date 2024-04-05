@@ -1,8 +1,11 @@
-from contextlib import contextmanager
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from enum import IntEnum
 from graphlib import CycleError, TopologicalSorter
 from multiprocessing import cpu_count
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
-from uuid import uuid4
+from typing import TYPE_CHECKING, Callable, Iterator, Optional
 
 from gevent.pool import Pool
 from paramiko import PKey
@@ -11,11 +14,13 @@ from pyinfra import logger
 
 from .config import Config
 from .exceptions import PyinfraError
-from .util import sha1_hash
 
 if TYPE_CHECKING:
+    from pyinfra.api.arguments import AllArguments
+    from pyinfra.api.command import PyinfraCommand
     from pyinfra.api.host import Host
     from pyinfra.api.inventory import Inventory
+    from pyinfra.api.operation import OperationMeta
 
 
 # Work out the max parallel we can achieve with the open files limit of the user/process,
@@ -77,6 +82,58 @@ class BaseStateCallback:
         pass
 
 
+class StateStage(IntEnum):
+    # Setup - collect inventory & data
+    Setup = 1
+    # Connect - connect to the inventory
+    Connect = 2
+    # Prepare - detect operation changes
+    Prepare = 3
+    # Execute - execute operations
+    Execute = 4
+    # Disconnect - disconnect from the inventory
+    Disconnect = 5
+
+
+class StateOperationMeta:
+    names: set[str]
+    args: list[str]
+    op_order: tuple[int, ...]
+    global_arguments: "AllArguments"
+
+    def __init__(self, op_order: tuple[int, ...]):
+        self.op_order = op_order
+        self.names = set()
+        self.args = []
+        self.global_arguments = {}  # type: ignore
+
+
+@dataclass
+class StateOperationHostData:
+    command_generator: Callable[[], Iterator["PyinfraCommand"]]
+    global_arguments: "AllArguments"
+    operation_meta: "OperationMeta"
+    parent_op_hash: Optional[str] = None
+
+
+class StateHostMeta:
+    ops = 0
+    ops_change = 0
+    ops_no_change = 0
+    op_hashes: set[str]
+
+    def __init__(self):
+        self.op_hashes = set()
+
+
+class StateHostResults:
+    ops = 0
+    success_ops = 0
+    error_ops = 0
+    ignored_error_ops = 0
+    partial_ops = 0
+
+
 class State:
     """
     Manages state for a pyinfra deploy.
@@ -93,8 +150,17 @@ class State:
     # Main gevent pool
     pool: "Pool"
 
+    # Current stage this state is in
+    current_stage: StateStage = StateStage.Setup
+    # Warning counters by stage
+    stage_warnings: dict[StateStage, int] = defaultdict(int)
+
     # Whether we are executing operations (ie hosts are all ready)
     is_executing: bool = False
+
+    # Whether we should check for operation changes as part of the operation ordering phase, this
+    # allows us to guesstimate which ops will result in changes on which hosts.
+    check_for_changes: bool = True
 
     print_noop_info: bool = False  # print "[host] noop: reason for noop"
     print_fact_info: bool = False  # print "loaded fact X"
@@ -108,20 +174,33 @@ class State:
     current_deploy_filename: Optional[str] = None
     current_exec_filename: Optional[str] = None
     current_op_file_number: int = 0
+    should_raise_failed_hosts: Optional[Callable[["State"], bool]] = None
 
     def __init__(
-        self, inventory: Optional["Inventory"] = None, config: Optional["Config"] = None, **kwargs
+        self,
+        inventory: Optional["Inventory"] = None,
+        config: Optional["Config"] = None,
+        check_for_changes: bool = True,
+        **kwargs,
     ):
-        """Initializes the state, the main Pyinfra
+        """
+        Initializes the state, the main Pyinfra
 
         Args:
             inventory (Optional[Inventory], optional): The inventory. Defaults to None.
             config (Optional[Config], optional): The config object. Defaults to None.
         """
+        self.check_for_changes = check_for_changes
+
         if inventory:
             self.init(inventory, config, **kwargs)
 
-    def init(self, inventory: "Inventory", config: Optional["Config"], initial_limit=None):
+    def init(
+        self,
+        inventory: "Inventory",
+        config: Optional["Config"],
+        initial_limit=None,
+    ):
         # Config validation
         #
 
@@ -150,79 +229,63 @@ class State:
         # Actually initialise the state object
         #
 
-        self.callback_handlers: List[BaseStateCallback] = []
+        self.callback_handlers: list[BaseStateCallback] = []
 
         # Setup greenlet pools
         self.pool = Pool(config.PARALLEL)
         self.fact_pool = Pool(config.PARALLEL)
 
         # Private keys
-        self.private_keys: Dict[str, PKey] = {}
+        self.private_keys: dict[str, PKey] = {}
 
         # Assign inventory/config
         self.inventory = inventory
         self.config = config
 
         # Hosts we've activated at any time
-        self.activated_hosts: Set["Host"] = set()
+        self.activated_hosts: set["Host"] = set()
         # Active hosts that *haven't* failed yet
-        self.active_hosts: Set["Host"] = set()
+        self.active_hosts: set["Host"] = set()
         # Hosts that have failed
-        self.failed_hosts: Set["Host"] = set()
+        self.failed_hosts: set["Host"] = set()
 
         # Limit hosts changes dynamically to limit operations to a subset of hosts
-        self.limit_hosts: List["Host"] = initial_limit
+        self.limit_hosts: list["Host"] = initial_limit
 
         # Op basics
-        self.op_meta: Dict[str, dict] = {}  # maps operation hash -> names/etc
-        self.ops_run: Set[str] = set()  # list of ops which have been started/run
+        self.op_meta: dict[str, StateOperationMeta] = {}  # maps operation hash -> names/etc
 
         # Op dict for each host
-        self.ops: Dict["Host", dict] = {host: {} for host in inventory}
-
-        # Facts dict for each host
-        self.facts: Dict["Host", Any] = {host: {} for host in inventory}
+        self.ops: dict["Host", dict[str, StateOperationHostData]] = {host: {} for host in inventory}
 
         # Meta dict for each host
-        self.meta = {
-            host: {
-                "ops": 0,  # one function call in a deploy file
-                "ops_change": 0,
-                "ops_no_change": 0,
-                "commands": 0,  # actual # of commands to run
-                "op_hashes": set(),
-            }
-            for host in inventory
-        }
+        self.meta: dict["Host", StateHostMeta] = {host: StateHostMeta() for host in inventory}
 
         # Results dict for each host
-        self.results = {
-            host: {
-                "ops": 0,  # success_ops + failed ops w/ignore_errors
-                "success_ops": 0,
-                "error_ops": 0,
-                "ignored_error_ops": 0,
-                "partial_ops": 0,  # operations that had an error, but did do something
-                "commands": 0,
-            }
-            for host in inventory
+        self.results: dict["Host", StateHostResults] = {
+            host: StateHostResults() for host in inventory
         }
 
         # Assign state back references to inventory & config
         inventory.state = config.state = self
         for host in inventory:
-            host.state = self
+            host.init(self)
 
         self.initialised = True
 
-    def to_dict(self):
-        return {
-            "op_order": self.get_op_order(),
-            "ops": self.ops,
-            "facts": self.facts,
-            "meta": self.meta,
-            "results": self.results,
-        }
+    def set_stage(self, stage: StateStage) -> None:
+        if stage < self.current_stage:
+            raise Exception("State stage cannot go backwards!")
+        self.current_stage = stage
+
+    def increment_warning_counter(self) -> None:
+        self.stage_warnings[self.current_stage] += 1
+
+    def get_warning_counter(self) -> int:
+        return self.stage_warnings[self.current_stage]
+
+    def should_check_for_changes(self):
+        return self.check_for_changes
 
     def add_callback_handler(self, handler):
         if not isinstance(handler, BaseStateCallback):
@@ -236,18 +299,8 @@ class State:
             func = getattr(handler, method_name)
             func(self, *args, **kwargs)
 
-    @contextmanager
-    def preserve_loop_order(self, items):
-        logger.warning(
-            (
-                "Using `state.preserve_loop_order` is not longer required for operations to be "
-                "executed in correct loop order and can be safely removed."
-            ),
-        )
-        yield lambda: items
-
     def get_op_order(self):
-        ts = TopologicalSorter()
+        ts: TopologicalSorter = TopologicalSorter()
 
         for host in self.inventory:
             for i, op_hash in enumerate(host.op_hash_order):
@@ -275,20 +328,35 @@ class State:
             # dependency order we order them by line numbers.
             node_group = sorted(
                 ts.get_ready(),
-                key=lambda op_hash: self.op_meta[op_hash]["op_order"],
+                key=lambda op_hash: self.op_meta[op_hash].op_order,
             )
             ts.done(*node_group)
             final_op_order.extend(node_group)
 
         return final_op_order
 
-    def get_op_meta(self, op_hash: str):
+    def get_op_meta(self, op_hash: str) -> StateOperationMeta:
         return self.op_meta[op_hash]
 
-    def get_op_data(self, host: "Host", op_hash: str):
+    def get_meta_for_host(self, host: "Host") -> StateHostMeta:
+        return self.meta[host]
+
+    def get_results_for_host(self, host: "Host") -> StateHostResults:
+        return self.results[host]
+
+    def get_op_data_for_host(
+        self,
+        host: "Host",
+        op_hash: str,
+    ) -> StateOperationHostData:
         return self.ops[host][op_hash]
 
-    def set_op_data(self, host: "Host", op_hash: str, op_data):
+    def set_op_data_for_host(
+        self,
+        host: "Host",
+        op_hash: str,
+        op_data: StateOperationHostData,
+    ):
         self.ops[host][op_hash] = op_data
 
     def activate_host(self, host: "Host"):
@@ -336,6 +404,9 @@ class State:
             percent_failed = (1 - len(active_hosts) / activated_count) * 100
 
             if percent_failed > self.config.FAIL_PERCENT:
+                if self.should_raise_failed_hosts and self.should_raise_failed_hosts(self) is False:
+                    return
+
                 raise PyinfraError(
                     "Over {0}% of hosts failed ({1}%)".format(
                         self.config.FAIL_PERCENT,
@@ -353,16 +424,3 @@ class State:
         if not isinstance(limit_hosts, list):
             return True
         return host in limit_hosts
-
-    def get_temp_filename(self, hash_key: Optional[str] = None, hash_filename: bool = True):
-        """
-        Generate a temporary filename for this deploy.
-        """
-
-        if not hash_key:
-            hash_key = str(uuid4())
-
-        if hash_filename:
-            hash_key = sha1_hash(hash_key)
-
-        return "{0}/pyinfra-{1}".format(self.config.TEMP_DIR, hash_key)

@@ -8,6 +8,7 @@ from io import StringIO
 from itertools import filterfalse, tee
 from os import path
 from time import sleep
+from typing import TYPE_CHECKING
 
 from pyinfra import host, logger, state
 from pyinfra.api import FunctionCommand, OperationError, StringCommand, operation
@@ -46,6 +47,9 @@ from . import (
 )
 from .util.files import chmod, sed_replace
 
+if TYPE_CHECKING:
+    from pyinfra.api.arguments_typed import PyinfraOperation
+
 
 @operation(is_idempotent=False)
 def reboot(delay=10, interval=1, reboot_timeout=300):
@@ -75,7 +79,7 @@ def reboot(delay=10, interval=1, reboot_timeout=300):
 
     yield FunctionCommand(remove_any_askpass_file, (), {})
 
-    yield StringCommand("reboot", success_exit_codes=[0, -1])  # -1 being error/disconnected
+    yield StringCommand("reboot", _success_exit_codes=[0, -1])  # -1 being error/disconnected
 
     def wait_and_reconnect(state, host):  # pragma: no cover
         sleep(delay)
@@ -135,7 +139,7 @@ def wait(port: int):
 
 
 @operation(is_idempotent=False)
-def shell(commands):
+def shell(commands: str | list[str]):
     """
     Run raw shell code on server during a deploy. If the command would
     modify data that would be in a fact, the fact would not be updated
@@ -162,7 +166,7 @@ def shell(commands):
 
 
 @operation(is_idempotent=False)
-def script(src, args=()):
+def script(src: str, args=()):
     """
     Upload and execute a local script on the remote host.
 
@@ -187,15 +191,15 @@ def script(src, args=()):
         )
     """
 
-    temp_file = state.get_temp_filename()
-    yield from files.put(src, temp_file)
+    temp_file = host.get_temp_filename()
+    yield from files.put._inner(src=src, dest=temp_file)
 
     yield chmod(temp_file, "+x")
     yield StringCommand(temp_file, *args)
 
 
 @operation(is_idempotent=False)
-def script_template(src, args=(), **data):
+def script_template(src: str, args=(), **data):
     """
     Generate, upload and execute a local script template on the remote host.
 
@@ -217,15 +221,15 @@ def script_template(src, args=(), **data):
         )
     """
 
-    temp_file = state.get_temp_filename("{0}{1}".format(src, data))
-    yield from files.template(src, temp_file, **data)
+    temp_file = host.get_temp_filename("{0}{1}".format(src, data))
+    yield from files.template._inner(src, temp_file, **data)
 
     yield chmod(temp_file, "+x")
     yield StringCommand(temp_file, *args)
 
 
-@operation
-def modprobe(module, present=True, force=False):
+@operation()
+def modprobe(module: str, present=True, force=False):
     """
     Load/unload kernel modules.
 
@@ -259,14 +263,10 @@ def modprobe(module, present=True, force=False):
     # Module is loaded and we don't want it?
     if not present and present_mods:
         yield "modprobe{0} -r -a {1}".format(args, " ".join(present_mods))
-        for mod in present_mods:
-            modules.pop(mod)
 
     # Module isn't loaded and we want it?
     elif present and missing_mods:
         yield "modprobe{0} -a {1}".format(args, " ".join(missing_mods))
-        for mod in missing_mods:
-            modules[mod] = {}
 
     else:
         host.noop(
@@ -279,13 +279,13 @@ def modprobe(module, present=True, force=False):
         )
 
 
-@operation
+@operation()
 def mount(
-    path,
+    path: str,
     mounted=True,
-    options=None,
-    device=None,
-    fs_type=None,
+    options: list[str] = None,
+    device: str = None,
+    fs_type: str = None,
     # TODO: do we want to manage fstab here?
     # update_fstab=False,
 ):
@@ -322,13 +322,10 @@ def mount(
         args.append(path)
 
         yield StringCommand("mount", *args)
-        # Should we update facts with fs_type, device, etc?
-        mounts[path] = {"options": options}
 
     # Want no mount but mounted?
     elif mounted is False and is_mounted:
         yield "umount {0}".format(path)
-        mounts.pop(path)
 
     # Want mount and is mounted! Check the options
     elif is_mounted and mounted and options:
@@ -336,7 +333,6 @@ def mount(
         needed_options = set(options) - set(mounted_options)
         if needed_options:
             yield "mount -o remount,{0} {1}".format(options_string, path)
-            mounts[path]["options"] = options
 
     else:
         host.noop(
@@ -347,8 +343,8 @@ def mount(
         )
 
 
-@operation
-def hostname(hostname, hostname_file=None):
+@operation()
+def hostname(hostname: str, hostname_file: str = None):
     """
     Set the system hostname using ``hostnamectl`` or ``hostname`` on older systems.
 
@@ -379,7 +375,6 @@ def hostname(hostname, hostname_file=None):
     if host.get_fact(Which, command="hostnamectl"):
         if current_hostname != hostname:
             yield "hostnamectl set-hostname {0}".format(hostname)
-            host.create_fact(Hostname, data=hostname)
         else:
             host.noop("hostname is set")
         return
@@ -394,7 +389,6 @@ def hostname(hostname, hostname_file=None):
 
     if current_hostname != hostname:
         yield "hostname {0}".format(hostname)
-        host.create_fact(Hostname, data=hostname)
     else:
         host.noop("hostname is set")
 
@@ -403,13 +397,13 @@ def hostname(hostname, hostname_file=None):
         file = StringIO("{0}\n".format(hostname))
 
         # And ensure it exists
-        yield from files.put(file, hostname_file)
+        yield from files.put._inner(src=file, dest=hostname_file)
 
 
-@operation
+@operation()
 def sysctl(
-    key,
-    value,
+    key: str,
+    value: str,
     persist=False,
     persist_file="/etc/sysctl.conf",
 ):
@@ -437,35 +431,34 @@ def sysctl(
 
     value = [try_int(v) for v in value] if isinstance(value, list) else try_int(value)
 
-    existing_sysctls = host.get_fact(Sysctl)
-
+    existing_sysctls = host.get_fact(Sysctl, keys=[key])
     existing_value = existing_sysctls.get(key)
+
     if not existing_value or existing_value != value:
         yield "sysctl {0}='{1}'".format(key, string_value)
-        existing_sysctls[key] = value
     else:
         host.noop("sysctl {0} is set to {1}".format(key, string_value))
 
     if persist:
-        yield from files.line(
+        yield from files.line._inner(
             path=persist_file,
             line="{0}[[:space:]]*=[[:space:]]*{1}".format(key, string_value),
             replace="{0} = {1}".format(key, string_value),
         )
 
 
-@operation
+@operation()
 def service(
-    service,
+    service: str,
     running=True,
     restarted=False,
     reloaded=False,
-    command=None,
-    enabled=None,
+    command: str = None,
+    enabled: bool = None,
 ):
     """
     Manage the state of services. This command checks for the presence of all the
-    Linux init systems ``pyinfra`` can handle and executes the relevant operation.
+    Linux init systems pyinfra can handle and executes the relevant operation.
 
     + service: name of the service to manage
     + running: whether the service should be running
@@ -485,6 +478,8 @@ def service(
         )
     """
 
+    service_operation: "PyinfraOperation"
+
     if host.get_fact(Which, command="systemctl"):
         service_operation = systemd.service
 
@@ -503,7 +498,7 @@ def service(
 
     # NOTE: important that we are not Linux here because /etc/rc.d will exist but checking it's
     # contents may trigger things (like a reboot: https://github.com/Fizzadar/pyinfra/issues/819)
-    elif host.get_fact(Os) != "Linux" and host.get_fact(Directory, path="/etc/rc.d"):
+    elif host.get_fact(Os) != "Linux" and bool(host.get_fact(Directory, path="/etc/rc.d")):
         service_operation = bsdinit.service
 
     else:
@@ -511,8 +506,8 @@ def service(
             ("No init system found " "(no systemctl, initctl, /etc/init.d or /etc/rc.d found)"),
         )
 
-    yield from service_operation(
-        service,
+    yield from service_operation._inner(
+        service=service,
         running=running,
         restarted=restarted,
         reloaded=reloaded,
@@ -521,14 +516,14 @@ def service(
     )
 
 
-@operation
+@operation()
 def packages(
-    packages,
+    packages: str | list[str],
     present=True,
 ):
     """
     Add or remove system packages. This command checks for the presence of all the
-    system package managers ``pyinfra`` can handle and executes the relevant operation.
+    system package managers pyinfra can handle and executes the relevant operation.
 
     + packages: list of packages to ensure
     + present: whether the packages should be installed
@@ -542,6 +537,8 @@ def packages(
             packages=["vimpager", "vim"],
         )
     """
+
+    package_operation: "PyinfraOperation"
 
     # TODO: improve this - use LinuxDistribution fact + mapping with fallback below?
     # Here to be preferred on openSUSE which also provides aptitude
@@ -581,21 +578,21 @@ def packages(
             ),
         )
 
-    yield from package_operation(packages=packages, present=present)
+    yield from package_operation._inner(packages=packages, present=present)
 
 
-@operation
+@operation()
 def crontab(
-    command,
+    command: str,
     present=True,
-    user=None,
-    cron_name=None,
+    user: str = None,
+    cron_name: str = None,
     minute="*",
     hour="*",
     month="*",
     day_of_week="*",
     day_of_month="*",
-    special_time=None,
+    special_time: str = None,
     interpolate_variables=False,
 ):
     """
@@ -657,6 +654,8 @@ def crontab(
 
     if not existing_crontab and cron_name:  # find the crontab by name if provided
         for cmd, details in crontab.items():
+            if not details["comments"]:
+                continue
             if name_comment in details["comments"]:
                 existing_crontab = details
                 existing_crontab_match = cmd
@@ -665,7 +664,7 @@ def crontab(
     exists = existing_crontab is not None
 
     edit_commands = []
-    temp_filename = state.get_temp_filename()
+    temp_filename = host.get_temp_filename()
 
     if special_time:
         new_crontab_line = "{0} {1}".format(special_time, command)
@@ -713,6 +712,7 @@ def crontab(
 
     # We have the cron and it exists, do it's details? If not, replace the line
     elif present and exists:
+        assert existing_crontab is not None
         if any(
             (
                 special_time != existing_crontab.get("special_time"),
@@ -748,20 +748,6 @@ def crontab(
 
         # Finally, use the tempfile to write a new crontab
         yield "crontab {0} {1}".format(" ".join(crontab_args), temp_filename)
-
-        # Update the crontab fact
-        if present:
-            crontab[command] = {
-                "special_time": special_time,
-                "minute": minute,
-                "hour": hour,
-                "month": month,
-                "day_of_week": day_of_week,
-                "day_of_month": day_of_month,
-                "comments": [cron_name] if cron_name else [],
-            }
-        else:
-            crontab.pop(command)
     else:
         host.noop(
             "crontab {0} {1}".format(
@@ -771,8 +757,8 @@ def crontab(
         )
 
 
-@operation
-def group(group, present=True, system=False, gid=None):
+@operation()
+def group(group: str, present=True, system=False, gid: int = None):
     """
     Add/remove system groups.
 
@@ -811,7 +797,6 @@ def group(group, present=True, system=False, gid=None):
             yield "pw groupdel -n {0}".format(group)
         else:
             yield "groupdel {0}".format(group)
-        groups.remove(group)
 
     # Group doesn't exist and we want it?
     elif present and not is_present:
@@ -837,18 +822,17 @@ def group(group, present=True, system=False, gid=None):
         group_add_command = "groupadd"
         if os_type == "FreeBSD":
             group_add_command = "pw groupadd"
-        yield "grep '^{0}:' /etc/group || {2} {1}".format(group, " ".join(args), group_add_command)
-        groups.append(group)
+        yield "{0} {1}".format(group_add_command, " ".join(args))
 
 
-@operation
+@operation()
 def user_authorized_keys(
-    user,
-    public_keys,
-    group=None,
+    user: str,
+    public_keys: str | list[str],
+    group: str = None,
     delete_keys=False,
-    authorized_key_directory=None,
-    authorized_key_filename=None,
+    authorized_key_directory: str = None,
+    authorized_key_filename: str = None,
 ):
     """
     Manage `authorized_keys` of system users.
@@ -860,7 +844,7 @@ def user_authorized_keys(
 
     Public keys:
         These can be provided as strings containing the public key or as a path to
-        a public key file which ``pyinfra`` will read.
+        a public key file which pyinfra will read.
 
     **Examples:**
 
@@ -872,6 +856,7 @@ def user_authorized_keys(
             public_keys=["ed25519..."],
         )
     """
+
     if not authorized_key_directory:
         authorized_key_directory = f"/home/{user}/.ssh/"
     if not authorized_key_filename:
@@ -889,15 +874,15 @@ def user_authorized_keys(
             with open(try_path, "r") as f:
                 return f.read().strip()
 
-        return key
+        return key.strip()
 
     public_keys = list(map(read_any_pub_key_file, public_keys))
 
     # Ensure .ssh directory
     # note that this always outputs commands unless the SSH user has access to the
     # authorized_keys file, ie the SSH user is the user defined in this function
-    yield from files.directory(
-        authorized_key_directory,
+    yield from files.directory._inner(
+        path=authorized_key_directory,
         user=user,
         group=group or user,
         mode=700,
@@ -914,7 +899,7 @@ def user_authorized_keys(
         )
 
         # And ensure it exists
-        yield from files.put(
+        yield from files.put._inner(
             src=keys_file,
             dest=authorized_key_file,
             user=user,
@@ -924,7 +909,7 @@ def user_authorized_keys(
 
     else:
         # Ensure authorized_keys exists
-        yield from files.file(
+        yield from files.file._inner(
             path=authorized_key_file,
             user=user,
             group=group or user,
@@ -933,26 +918,27 @@ def user_authorized_keys(
 
         # And every public key is present
         for key in public_keys:
-            yield from files.line(path=authorized_key_file, line=key, ensure_newline=True)
+            yield from files.line._inner(path=authorized_key_file, line=key, ensure_newline=True)
 
 
-@operation
+@operation()
 def user(
-    user,
+    user: str,
     present=True,
-    home=None,
-    shell=None,
-    group=None,
-    groups=None,
-    public_keys=None,
+    home: str = None,
+    shell: str = None,
+    group: str = None,
+    groups: list[str] = None,
+    public_keys: str | list[str] = None,
     delete_keys=False,
     ensure_home=True,
     create_home=False,
     system=False,
-    uid=None,
-    comment=None,
+    uid: int = None,
+    comment: str = None,
     add_deploy_dir=True,
     unique=True,
+    password: str = None,
 ):
     """
     Add/remove/update system users & their ssh `authorized_keys`.
@@ -972,6 +958,7 @@ def user(
     + comment: the user GECOS comment
     + add_deploy_dir: any public_key filenames are relative to the deploy directory
     + unique: prevent creating users with duplicate UID
+    + password: set the encrypted password for the user
 
     Home directory:
         When ``ensure_home`` or ``public_keys`` are provided, ``home`` defaults to
@@ -981,7 +968,7 @@ def user(
 
     Public keys:
         These can be provided as strings containing the public key or as a path to
-        a public key file which ``pyinfra`` will read.
+        a public key file which pyinfra will read.
 
     **Examples:**
 
@@ -1027,7 +1014,6 @@ def user(
                 yield "pw userdel -n {0}".format(user)
             else:
                 yield "userdel {0}".format(user)
-            users.pop(user)
         return
 
     # User doesn't exist but we want them?
@@ -1069,33 +1055,30 @@ def user(
 
         if create_home:
             args.append("-m")
+        else:
+            args.append("-M")
+
+        if password:
+            args.append("-p '{0}'".format(password))
 
         # Users are often added by other operations (package installs), so check
         # for the user at runtime before adding.
-
         add_user_command = "useradd"
         if os_type == "FreeBSD":
             add_user_command = "pw useradd"
-            yield "grep '^{2}:' /etc/passwd || {0} -n {2} {1}".format(
+            yield "{0} -n {2} {1}".format(
                 add_user_command,
                 " ".join(args),
                 user,
             )
         else:
-            yield "grep '^{2}:' /etc/passwd || {0} {1} {2}".format(
+            yield "{0} {1} {2}".format(
                 add_user_command,
                 " ".join(args),
                 user,
             )
-        users[user] = {
-            "comment": comment,
-            "home": home,
-            "shell": shell,
-            "group": group,
-            "groups": groups,
-        }
 
-    # User exists and we want them, check home/shell/keys
+    # User exists and we want them, check home/shell/keys/password
     else:
         args = []
 
@@ -1118,6 +1101,9 @@ def user(
         if comment and existing_user["comment"] != comment:
             args.append("-c '{0}'".format(comment))
 
+        if password and existing_user["password"] != password:
+            args.append("-p '{0}'".format(password))
+
         # Need to mod the user?
         if args:
             if os_type == "FreeBSD":
@@ -1134,11 +1120,13 @@ def user(
                 existing_user["group"] = group
             if groups:
                 existing_user["groups"] = groups
+            if password:
+                existing_user["password"] = password
 
     # Ensure home directory ownership
     if ensure_home:
-        yield from files.directory(
-            home,
+        yield from files.directory._inner(
+            path=home,
             user=user,
             group=group or user,
             # Don't fail if the home directory exists as a link
@@ -1147,9 +1135,9 @@ def user(
 
     # Add SSH keys
     if public_keys is not None:
-        yield from user_authorized_keys(
-            user,
-            public_keys,
+        yield from user_authorized_keys._inner(
+            user=user,
+            public_keys=public_keys,
             group=group,
             delete_keys=delete_keys,
             authorized_key_directory="{0}/.ssh".format(home),
@@ -1157,9 +1145,9 @@ def user(
         )
 
 
-@operation
+@operation()
 def locale(
-    locale,
+    locale: str,
     present=True,
 ):
     """
@@ -1208,7 +1196,7 @@ def locale(
     if not present and locale in locales:
         logger.debug(f"Removing locale {locale}")
 
-        yield from files.line(
+        yield from files.line._inner(
             path=locales_definitions_file, line=f"^{matching_line}$", replace=f"# {matching_line}"
         )
 
@@ -1218,10 +1206,47 @@ def locale(
     if present and locale not in locales:
         logger.debug(f"Adding locale {locale}")
 
-        yield from files.replace(
+        yield from files.replace._inner(
             path=locales_definitions_file,
             text=f"^{matching_line}$",
             replace=f"{matching_line}".replace("# ", ""),
         )
 
         yield "locale-gen"
+
+
+@operation()
+def security_limit(
+    domain: str,
+    limit_type: str,
+    item: str,
+    value: int,
+):
+    """
+    Edit /etc/security/limits.conf configuration.
+
+    + domain: the domain (user, group, or wildcard) for the limit
+    + limit_type: the type of limit (hard or soft)
+    + item: the item to limit (e.g., nofile, nproc)
+    + value: the value for the limit
+
+    **Example:**
+
+    .. code:: python
+
+        security_limit(
+            name="Set nofile limit for all users",
+            domain='*',
+            limit_type='soft',
+            item='nofile',
+            value=1024,
+        )
+    """
+
+    line_format = f"{domain}\t{limit_type}\t{item}\t{value}"
+
+    yield from files.line._inner(
+        path="/etc/security/limits.conf",
+        line=f"^{domain}[[:space:]]+{limit_type}[[:space:]]+{item}",
+        replace=line_format,
+    )

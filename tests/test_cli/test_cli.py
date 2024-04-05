@@ -1,7 +1,6 @@
 from os import path
 from unittest import TestCase
 
-from pyinfra.context import ctx_state
 from pyinfra_cli.main import _main
 
 from ..paramiko_util import PatchSSHTestCase
@@ -17,23 +16,10 @@ class TestCliEagerFlags(TestCase):
         assert result.exit_code == 0, result.stdout
 
 
-class TestDeployCli(PatchSSHTestCase):
-    def setUp(self):
-        ctx_state.reset()
-
-    def test_invalid_deploy(self):
-        result = run_cli(
-            "@local",
-            "not-a-file.py",
-        )
-        assert result.exit_code == 1, result.stdout
-        assert "No deploy file: not-a-file.py" in result.stdout
-
-
 class TestOperationCli(PatchSSHTestCase):
     def test_invalid_operation_module(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "not_a_module.shell",
         )
         assert result.exit_code == 1, result.stdout
@@ -41,7 +27,7 @@ class TestOperationCli(PatchSSHTestCase):
 
     def test_invalid_operation_function(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "server.not_an_operation",
         )
         assert result.exit_code == 1, result.stdout
@@ -49,7 +35,8 @@ class TestOperationCli(PatchSSHTestCase):
 
     def test_deploy_operation(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            "-y",
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "server.shell",
             "echo hi",
         )
@@ -57,7 +44,8 @@ class TestOperationCli(PatchSSHTestCase):
 
     def test_deploy_operation_with_all(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventory_all.py"),
+            "-y",
+            path.join("tests", "test_cli", "deploy", "inventory_all.py"),
             "server.shell",
             "echo hi",
         )
@@ -65,7 +53,8 @@ class TestOperationCli(PatchSSHTestCase):
 
     def test_deploy_operation_json_args(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventory_all.py"),
+            "-y",
+            path.join("tests", "test_cli", "deploy", "inventory_all.py"),
             "server.shell",
             '[["echo hi"], {}]',
         )
@@ -75,7 +64,7 @@ class TestOperationCli(PatchSSHTestCase):
 class TestFactCli(PatchSSHTestCase):
     def test_get_fact(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "fact",
             "server.Os",
         )
@@ -84,7 +73,7 @@ class TestFactCli(PatchSSHTestCase):
 
     def test_get_fact_with_kwargs(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "fact",
             "files.File",
             "path=.",
@@ -92,29 +81,11 @@ class TestFactCli(PatchSSHTestCase):
         assert result.exit_code == 0, result.stdout
         assert '"somehost": null' in result.stdout
 
-    def test_invalid_fact_module(self):
-        result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
-            "fact",
-            "not_a_module.NotAFact",
-        )
-        assert result.exit_code == 1, result.stdout
-        assert "No such module: pyinfra.facts.not_a_module" in result.stdout
-
-    def test_invalid_fact_class(self):
-        result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
-            "fact",
-            "server.NotAFact",
-        )
-        assert result.exit_code == 1, result.stdout
-        assert "No such attribute in module pyinfra.facts.server: NotAFact" in result.stdout
-
 
 class TestExecCli(PatchSSHTestCase):
     def test_exec_command(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "exec",
             "--",
             "echo hi",
@@ -123,7 +94,7 @@ class TestExecCli(PatchSSHTestCase):
 
     def test_exec_command_with_options(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "exec",
             "--sudo",
             "--sudo-user",
@@ -141,7 +112,7 @@ class TestExecCli(PatchSSHTestCase):
 
     def test_exec_command_with_serial(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "exec",
             "--serial",
             "--",
@@ -151,7 +122,7 @@ class TestExecCli(PatchSSHTestCase):
 
     def test_exec_command_with_no_wait(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "exec",
             "--no-wait",
             "--",
@@ -161,7 +132,7 @@ class TestExecCli(PatchSSHTestCase):
 
     def test_exec_command_with_debug_operations(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "exec",
             "--debug-operations",
             "--",
@@ -171,7 +142,7 @@ class TestExecCli(PatchSSHTestCase):
 
     def test_exec_command_with_debug_facts(self):
         result = run_cli(
-            path.join("tests", "deploy", "inventories", "inventory.py"),
+            path.join("tests", "test_cli", "deploy", "inventories", "inventory.py"),
             "exec",
             "--debug-facts",
             "--",
@@ -206,18 +177,16 @@ class TestDirectMainExecution(PatchSSHTestCase):
                 parallel=None,
                 fail_percent=0,
                 dry=False,
+                yes=True,
                 limit=None,
                 no_wait=False,
                 serial=False,
-                winrm_username=None,
-                winrm_password=None,
-                winrm_port=None,
-                winrm_transport=None,
                 shell_executable=None,
                 quiet=False,
                 data=tuple(),
                 debug=False,
                 debug_facts=False,
+                debug_all=False,
                 debug_operations=False,
                 config_filename="config.py",
             )

@@ -8,10 +8,23 @@ it's possible to call facts on hosts out of context (ie give me the IP of this
 other host B while I operate on this host A).
 """
 
+from __future__ import annotations
+
 import re
 from inspect import getcallargs
 from socket import error as socket_error, timeout as timeout_error
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 import click
 import gevent
@@ -27,31 +40,27 @@ from pyinfra.api.util import (
     make_hash,
     print_host_combined_output,
 )
-from pyinfra.connectors.util import split_combined_output
+from pyinfra.connectors.util import CommandOutput
 from pyinfra.context import ctx_host, ctx_state
 from pyinfra.progress import progress_spinner
 
-from .arguments import get_executor_kwarg_keys
+from .arguments import CONNECTOR_ARGUMENT_KEYS
 
 if TYPE_CHECKING:
     from pyinfra.api.host import Host
     from pyinfra.api.state import State
 
-SUDO_REGEX = r"^sudo: unknown user:"
+SUDO_REGEX = r"^sudo: unknown user"
 SU_REGEXES = (
     r"^su: user .+ does not exist",
     r"^su: unknown login",
 )
 
 
-class FactNameMeta(type):
-    def __init__(cls, name: str, bases, attrs, **kwargs):
-        super().__init__(name, bases, attrs, **kwargs)
-        module_name = cls.__module__.replace("pyinfra.facts.", "")
-        cls.name = f"{module_name}.{cls.__name__}"
+T = TypeVar("T")
 
 
-class FactBase(metaclass=FactNameMeta):
+class FactBase(Generic[T]):
     name: str
 
     abstract: bool = True
@@ -62,22 +71,35 @@ class FactBase(metaclass=FactNameMeta):
 
     command: Union[str, Callable]
 
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        module_name = cls.__module__.replace("pyinfra.facts.", "")
+        cls.name = f"{module_name}.{cls.__name__}"
+
     @staticmethod
-    def default():
+    def default() -> T:
         """
         Set the default attribute to be a type (eg list/dict).
         """
 
-    @staticmethod
-    def process(output):
-        return "\n".join(output)
+        return cast(T, None)
+
+    def process(self, output: Iterable[str]) -> T:
+        # NOTE: TypeVar does not support a default, so we have to cast this str -> T
+        return cast(T, "\n".join(output))
 
     def process_pipeline(self, args, output):
         return {arg: self.process([output[i]]) for i, arg in enumerate(args)}
 
 
-class ShortFactBase(metaclass=FactNameMeta):
+class ShortFactBase(Generic[T]):
+    name: str
     fact: Type[FactBase]
+
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        module_name = cls.__module__.replace("pyinfra.facts.", "")
+        cls.name = f"{module_name}.{cls.__name__}"
 
     @staticmethod
     def process_data(data):
@@ -99,8 +121,8 @@ def _make_command(command_attribute, host_args):
 def _get_executor_kwargs(
     state: "State",
     host: "Host",
-    override_kwargs: Optional[Dict[str, Any]] = None,
-    override_kwarg_keys: Optional[List[str]] = None,
+    override_kwargs: Optional[dict[str, Any]] = None,
+    override_kwarg_keys: Optional[list[str]] = None,
 ):
     if override_kwargs is None:
         override_kwargs = {}
@@ -108,7 +130,7 @@ def _get_executor_kwargs(
         override_kwarg_keys = []
 
     # Use the current operation global kwargs, or generate defaults
-    global_kwargs = host.current_op_global_kwargs
+    global_kwargs = host.current_op_global_arguments
     if not global_kwargs:
         global_kwargs, _ = pop_global_arguments({}, state, host)
 
@@ -117,9 +139,7 @@ def _get_executor_kwargs(
         {key: value for key, value in global_kwargs.items() if key not in override_kwarg_keys},
     )
 
-    return {
-        key: value for key, value in override_kwargs.items() if key in get_executor_kwarg_keys()
-    }
+    return {key: value for key, value in override_kwargs.items() if key in CONNECTOR_ARGUMENT_KEYS}
 
 
 def _handle_fact_kwargs(state, host, cls, args, kwargs):
@@ -136,13 +156,13 @@ def _handle_fact_kwargs(state, host, cls, args, kwargs):
         kwargs,
         state=state,
         host=host,
-        keys_to_check=get_executor_kwarg_keys(),
+        keys_to_check=CONNECTOR_ARGUMENT_KEYS,
     )
 
     executor_kwargs = _get_executor_kwargs(
         state,
         host,
-        override_kwargs=override_kwargs,
+        override_kwargs=override_kwargs,  # type: ignore[arg-type]
         override_kwarg_keys=override_kwarg_keys,
     )
 
@@ -181,14 +201,12 @@ def get_facts(state: "State", *args, **kwargs):
 def get_fact(
     state: "State",
     host: "Host",
-    cls: Type[FactBase],
+    cls: type[FactBase],
     args: Optional[Any] = None,
     kwargs: Optional[Any] = None,
     ensure_hosts: Optional[Any] = None,
     apply_failed_hosts: bool = True,
-    fact_hash: Optional[Any] = None,
-    use_cache: bool = True,
-):
+) -> Any:
     if issubclass(cls, ShortFactBase):
         return get_short_facts(
             state,
@@ -198,36 +216,28 @@ def get_fact(
             kwargs=kwargs,
             ensure_hosts=ensure_hosts,
             apply_failed_hosts=apply_failed_hosts,
-            fact_hash=fact_hash,
-            use_cache=use_cache,
         )
 
-    with host.facts_lock:
-        if use_cache and fact_hash and fact_hash in host.facts:
-            return host.facts[fact_hash]
-
-        return _get_fact(
-            state,
-            host,
-            cls,
-            args,
-            kwargs,
-            ensure_hosts,
-            apply_failed_hosts,
-            fact_hash,
-        )
+    return _get_fact(
+        state,
+        host,
+        cls,
+        args,
+        kwargs,
+        ensure_hosts,
+        apply_failed_hosts,
+    )
 
 
 def _get_fact(
     state: "State",
     host: "Host",
-    cls: Type[FactBase],
-    args: Optional[List] = None,
-    kwargs: Optional[Dict] = None,
+    cls: type[FactBase],
+    args: Optional[list] = None,
+    kwargs: Optional[dict] = None,
     ensure_hosts: Optional[Any] = None,
     apply_failed_hosts: bool = True,
-    fact_hash: Optional[Any] = None,
-):
+) -> Any:
     fact = cls()
     name = fact.name
 
@@ -247,14 +257,15 @@ def _get_fact(
             raise_exceptions=True,
         )
 
-    ignore_errors = (host.current_op_global_kwargs or {}).get(
-        "ignore_errors",
-        state.config.IGNORE_ERRORS,
+    ignore_errors = (
+        host.current_op_global_arguments["_ignore_errors"]
+        if host.in_op and host.current_op_global_arguments
+        else state.config.IGNORE_ERRORS
     )
 
     # Facts can override the shell (winrm powershell vs cmd support)
     if fact.shell_executable:
-        executor_kwargs["shell_executable"] = fact.shell_executable
+        executor_kwargs["_shell_executable"] = fact.shell_executable
 
     command = _make_command(fact.command, fact_kwargs)
     requires_command = _make_command(fact.requires_command, fact_kwargs)
@@ -271,40 +282,38 @@ def _get_fact(
         )
 
     status = False
-    stdout = []
-    combined_output_lines = []
+    output = CommandOutput([])
 
     try:
-        status, combined_output_lines = host.run_shell_command(
+        status, output = host.run_shell_command(
             command,
             print_output=state.print_fact_output,
             print_input=state.print_fact_input,
-            return_combined_output=True,
             **executor_kwargs,
         )
     except (timeout_error, socket_error, SSHException) as e:
         log_host_command_error(
             host,
             e,
-            timeout=executor_kwargs["timeout"],
+            timeout=executor_kwargs["_timeout"],
         )
 
-    stdout, stderr = split_combined_output(combined_output_lines)
+    stdout_lines, stderr_lines = output.stdout_lines, output.stderr_lines
 
     data = fact.default()
 
     if status:
-        if stdout:
-            data = fact.process(stdout)
-    elif stderr:
+        if stdout_lines:
+            data = fact.process(stdout_lines)
+    elif stderr_lines:
         # If we have error output and that error is sudo or su stating the user
         # does not exist, do not fail but instead return the default fact value.
         # This allows for users that don't currently but may be created during
         # other operations.
-        first_line = stderr[0]
-        if executor_kwargs["sudo_user"] and re.match(SUDO_REGEX, first_line):
+        first_line = stderr_lines[0]
+        if executor_kwargs["_sudo_user"] and re.match(SUDO_REGEX, first_line):
             status = True
-        if executor_kwargs["su_user"] and any(re.match(regex, first_line) for regex in SU_REGEXES):
+        if executor_kwargs["_su_user"] and any(re.match(regex, first_line) for regex in SU_REGEXES):
             status = True
 
     if status:
@@ -321,7 +330,7 @@ def _get_fact(
             logger.debug(log_message)
     else:
         if not state.print_fact_output:
-            print_host_combined_output(host, combined_output_lines)
+            print_host_combined_output(host, output)
 
         log_error_or_warning(
             host,
@@ -333,8 +342,6 @@ def _get_fact(
     if not status and not ignore_errors and apply_failed_hosts:
         state.fail_hosts({host})
 
-    if fact_hash:
-        host.facts[fact_hash] = data
     return data
 
 
@@ -349,50 +356,7 @@ def get_host_fact(
     state: "State",
     host: "Host",
     cls,
-    args: Optional[List] = None,
-    kwargs: Optional[Dict] = None,
-):
-    fact_hash = _get_fact_hash(state, host, cls, args, kwargs)
-    return get_fact(state, host, cls, args=args, kwargs=kwargs, fact_hash=fact_hash)
-
-
-def reload_host_fact(
-    state: "State",
-    host: "Host",
-    cls,
-    args: Optional[List] = None,
-    kwargs: Optional[Dict] = None,
-):
-    fact_hash = _get_fact_hash(state, host, cls, args, kwargs)
-    return get_fact(
-        state,
-        host,
-        cls,
-        args=args,
-        kwargs=kwargs,
-        fact_hash=fact_hash,
-        use_cache=False,
-    )
-
-
-def create_host_fact(
-    state: "State",
-    host: "Host",
-    cls,
-    data,
-    args: Optional[List] = None,
-    kwargs: Optional[Dict] = None,
-):
-    fact_hash = _get_fact_hash(state, host, cls, args, kwargs)
-    host.facts[fact_hash] = data
-
-
-def delete_host_fact(
-    state: "State",
-    host: "Host",
-    cls,
-    args: Optional[List] = None,
-    kwargs: Optional[Dict] = None,
-):
-    fact_hash = _get_fact_hash(state, host, cls, args, kwargs)
-    host.facts.pop(fact_hash, None)
+    args: Optional[Iterable] = None,
+    kwargs: Optional[dict] = None,
+) -> Any:
+    return get_fact(state, host, cls, args=args, kwargs=kwargs)

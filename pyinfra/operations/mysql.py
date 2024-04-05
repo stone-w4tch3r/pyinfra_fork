@@ -26,13 +26,13 @@ from pyinfra.facts.mysql import (
 
 @operation(is_idempotent=False)
 def sql(
-    sql,
-    database=None,
+    sql: str,
+    database: str = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Execute arbitrary SQL against MySQL.
@@ -52,28 +52,28 @@ def sql(
     )
 
 
-@operation
+@operation()
 def user(
-    user,
-    present=True,
-    user_hostname="localhost",
-    password=None,
-    privileges=None,
+    user: str,
+    present: bool = True,
+    user_hostname: str = "localhost",
+    password: str = None,
+    privileges: str | list[str] = None,
     # MySQL REQUIRE SSL/TLS options
-    require=None,  # SSL or X509
-    require_cipher=False,
-    require_issuer=False,
-    require_subject=False,
+    require: str = None,  # SSL or X509
+    require_cipher: str = None,
+    require_issuer: str = None,
+    require_subject: str = None,
     # MySQL WITH resource limit options
-    max_connections=None,
-    max_queries_per_hour=None,
-    max_updates_per_hour=None,
-    max_connections_per_hour=None,
+    max_connections: int = None,
+    max_queries_per_hour: int = None,
+    max_updates_per_hour: int = None,
+    max_connections_per_hour: int = None,
     # Details for speaking to MySQL via `mysql` CLI via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Add/remove/update MySQL users.
@@ -162,21 +162,9 @@ def user(
                 host=mysql_host,
                 port=mysql_port,
             )
-            current_users.pop(user_host)
         else:
             host.noop("mysql user {0}@{1} does not exist".format(user, user_hostname))
         return
-
-    new_or_updated_user_fact = {
-        "ssl_type": "ANY" if require == "SSL" else require,
-        "ssl_cipher": require_cipher,
-        "x509_issuer": require_issuer,
-        "x509_subject": require_subject,
-        "max_user_connections": max_connections,
-        "max_questions": max_queries_per_hour,
-        "max_updates": max_updates_per_hour,
-        "max_connections": max_connections_per_hour,
-    }
 
     if present and not is_present:
         sql_bits = ['CREATE USER "{0}"@"{1}"'.format(user, user_hostname)]
@@ -223,8 +211,6 @@ def user(
             host=mysql_host,
             port=mysql_port,
         )
-
-        current_users[user_host] = new_or_updated_user_fact
 
     if present and is_present:
         current_user = current_users.get(user_host)
@@ -277,14 +263,13 @@ def user(
                 host=mysql_host,
                 port=mysql_port,
             )
-            current_user.update(new_or_updated_user_fact)
         else:
             host.noop("mysql user {0}@{1} exists".format(user, user_hostname))
 
     # If we're here either the user exists or we just created them; either way
     # now we can check any privileges are set.
     if privileges:
-        yield from _privileges(
+        yield from _privileges._inner(
             user,
             privileges,
             user_hostname=user_hostname,
@@ -295,26 +280,26 @@ def user(
         )
 
 
-@operation
+@operation()
 def database(
-    database,
+    database: str,
     # Desired database settings
-    present=True,
-    collate=None,
-    charset=None,
-    user=None,
-    user_hostname="localhost",
-    user_privileges="ALL",
+    present: bool = True,
+    collate: str = None,
+    charset: str = None,
+    user: str = None,
+    user_hostname: str = "localhost",
+    user_privileges: str | list[str] = "ALL",
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Add/remove MySQL databases.
 
-    + name: the name of the database
+    + database: the name of the database
     + present: whether the database should exist or not
     + collate: the collate to use when creating the database
     + charset: the charset to use when creating the database
@@ -359,7 +344,6 @@ def database(
                 host=mysql_host,
                 port=mysql_port,
             )
-            current_databases.pop(database)
         else:
             host.noop("mysql database {0} does not exist".format(database))
         return
@@ -381,16 +365,12 @@ def database(
             host=mysql_host,
             port=mysql_port,
         )
-        current_databases[database] = {
-            "collate": collate,
-            "charset": charset,
-        }
     else:
         host.noop("mysql database {0} exists".format(database))
 
     # Ensure any user privileges for this database
     if user and user_privileges:
-        yield from privileges(
+        yield from privileges._inner(
             user,
             user_hostname=user_hostname,
             privileges=user_privileges,
@@ -402,20 +382,20 @@ def database(
         )
 
 
-@operation
+@operation()
 def privileges(
-    user,
-    privileges,
+    user: str,
+    privileges: str | list[str],
     user_hostname="localhost",
     database="*",
     table="*",
     flush=True,
     with_grant_option=False,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Add/remove MySQL privileges for a user, either global, database or table specific.
@@ -504,9 +484,6 @@ def privileges(
     # Find / grant any privileges that we want but do not exist
     privileges_to_grant = privileges - existing_privileges
 
-    user_grants[database_table] -= privileges_to_revoke
-    user_grants[database_table].update(privileges_to_grant)
-
     if privileges_to_grant:
         # We will grant something on this table, no need to revoke "USAGE" as it will be overridden
         privileges_to_revoke.discard("USAGE")
@@ -547,13 +524,13 @@ _privileges = privileges  # noqa: E305 (for use where kwarg is the same)
 
 @operation(is_idempotent=False)
 def dump(
-    dest,
-    database=None,
+    dest: str,
+    database: str = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Dump a MySQL database into a ``.sql`` file. Requires ``mysqldump``.
@@ -588,13 +565,13 @@ def dump(
 
 @operation(is_idempotent=False)
 def load(
-    src,
-    database=None,
+    src: str,
+    database: str = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user=None,
-    mysql_password=None,
-    mysql_host=None,
-    mysql_port=None,
+    mysql_user: str = None,
+    mysql_password: str = None,
+    mysql_host: str = None,
+    mysql_port: int = None,
 ):
     """
     Load ``.sql`` file into a database.

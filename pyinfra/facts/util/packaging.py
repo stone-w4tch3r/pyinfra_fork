@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import re
+from typing import Iterable
 
 
-def parse_packages(regex, output):
-    packages = {}
+def parse_packages(regex: str, output: Iterable[str]) -> dict[str, set[str]]:
+    packages: dict[str, set[str]] = {}
 
     for line in output:
         matches = re.match(regex, line)
@@ -18,7 +21,7 @@ def parse_packages(regex, output):
 def _parse_yum_or_zypper_repositories(output):
     repos = []
 
-    current_repo = {}
+    current_repo: dict[str, str] = {}
     for line in output:
         line = line.strip()
         if not line or line.startswith("#"):

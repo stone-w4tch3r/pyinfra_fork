@@ -6,7 +6,7 @@ Eg: ``pyinfra -> inventory-host.net <-> another-host.net``
 
 import shlex
 
-from pyinfra import host, state
+from pyinfra import host
 from pyinfra.api import OperationError, operation
 from pyinfra.facts.files import File, FindInFile
 from pyinfra.facts.server import Home
@@ -14,8 +14,8 @@ from pyinfra.facts.server import Home
 from . import files
 
 
-@operation
-def keyscan(hostname, force=False, port=22):
+@operation()
+def keyscan(hostname: str, force=False, port=22):
     """
     Check/add hosts to the ``~/.ssh/known_hosts`` file.
 
@@ -34,7 +34,7 @@ def keyscan(hostname, force=False, port=22):
 
     homedir = host.get_fact(Home)
 
-    yield from files.directory(
+    yield from files.directory._inner(
         "{0}/.ssh".format(homedir),
         mode=700,
     )
@@ -45,7 +45,6 @@ def keyscan(hostname, force=False, port=22):
         pattern=hostname,
     )
 
-    did_keyscan = False
     keyscan_command = "ssh-keyscan -p {0} {1} >> {2}/.ssh/known_hosts".format(
         port,
         hostname,
@@ -54,26 +53,17 @@ def keyscan(hostname, force=False, port=22):
 
     if not hostname_present:
         yield keyscan_command
-        did_keyscan = True
 
     elif force:
         yield "ssh-keygen -R {0}".format(hostname)
         yield keyscan_command
-        did_keyscan = True
 
     else:
         host.noop("host key for {0} already exists".format(hostname))
 
-    if did_keyscan:
-        host.create_fact(
-            FindInFile,
-            kwargs={"path": "{0}/.ssh/known_hosts".format(homedir), "pattern": hostname},
-            data=["{0} unknown unknown".format(hostname)],
-        )
-
 
 @operation(is_idempotent=False)
-def command(hostname, command, user=None, port=22):
+def command(hostname: str, command: str, user: str = None, port=22):
     """
     Execute commands on other servers over SSH.
 
@@ -105,11 +95,11 @@ def command(hostname, command, user=None, port=22):
 
 @operation(is_idempotent=False)
 def upload(
-    hostname,
-    filename,
-    remote_filename=None,
+    hostname: str,
+    filename: str,
+    remote_filename: str = None,
     port=22,
-    user=None,
+    user: str = None,
     use_remote_sudo=False,
     ssh_keyscan=False,
 ):
@@ -133,7 +123,7 @@ def upload(
         connection_target = "@".join((user, hostname))
 
     if ssh_keyscan:
-        yield from keyscan(hostname)
+        yield from keyscan._inner(hostname)
 
     # If we're not using sudo on the remote side, just scp the file over
     if not use_remote_sudo:
@@ -146,7 +136,7 @@ def upload(
 
     else:
         # Otherwise - we need a temporary location for the file
-        temp_remote_filename = state.get_temp_filename()
+        temp_remote_filename = host.get_temp_filename()
 
         # scp it to the temporary location
         upload_cmd = "scp -P {0} {1} {2}:{3}".format(
@@ -159,7 +149,7 @@ def upload(
         yield upload_cmd
 
         # And sudo sudo to move it
-        yield from command(
+        yield from command._inner(
             hostname=hostname,
             command="sudo mv {0} {1}".format(temp_remote_filename, remote_filename),
             port=port,
@@ -167,14 +157,14 @@ def upload(
         )
 
 
-@operation
+@operation()
 def download(
-    hostname,
-    filename,
-    local_filename=None,
+    hostname: str,
+    filename: str,
+    local_filename: str = None,
     force=False,
     port=22,
-    user=None,
+    user: str = None,
     ssh_keyscan=False,
 ):
     """
@@ -213,7 +203,7 @@ def download(
         connection_target = "@".join((user, hostname))
 
     if ssh_keyscan:
-        yield from keyscan(hostname)
+        yield from keyscan._inner(hostname)
 
     # Download the file with scp
     yield "scp -P {0} {1}:{2} {3}".format(
@@ -221,9 +211,4 @@ def download(
         connection_target,
         filename,
         local_filename,
-    )
-    host.create_fact(
-        File,
-        kwargs={"path": local_filename},
-        data={"mode": None, "group": None, "user": user, "mtime": None},
     )

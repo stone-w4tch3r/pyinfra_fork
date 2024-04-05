@@ -8,12 +8,12 @@ from pyinfra.api.exceptions import OperationError
 from pyinfra.facts.iptables import Ip6tablesChains, Ip6tablesRules, IptablesChains, IptablesRules
 
 
-@operation
+@operation()
 def chain(
-    chain,
+    chain: str,
     present=True,
     table="filter",
-    policy=None,
+    policy: str = None,
     version=4,
 ):
     """
@@ -41,7 +41,6 @@ def chain(
     if not present:
         if chain in chains:
             yield "{0} -X {1}".format(command, chain)
-            chains.pop(chain)
         else:
             host.noop("iptables chain {0} does not exist".format(chain))
         return
@@ -49,44 +48,42 @@ def chain(
     if present:
         if chain not in chains:
             yield "{0} -N {1}".format(command, chain)
-            chains[chain] = None  # policy will be set below
         else:
             host.noop("iptables chain {0} exists".format(chain))
 
         if policy:
             if chain not in chains or chains[chain] != policy:
                 yield "{0} -P {1} {2}".format(command, chain, policy)
-                chains[chain] = policy
 
 
-@operation
+@operation()
 def rule(
-    chain,
-    jump,
-    present=True,
-    table="filter",
-    append=True,
-    version=4,
+    chain: str,
+    jump: str,
+    present: bool = True,
+    table: str = "filter",
+    append: bool = True,
+    version: int = 4,
     # Core iptables filter arguments
-    protocol=None,
-    not_protocol=None,
-    source=None,
-    not_source=None,
-    destination=None,
-    not_destination=None,
-    in_interface=None,
-    not_in_interface=None,
-    out_interface=None,
-    not_out_interface=None,
+    protocol: str = None,
+    not_protocol: str = None,
+    source: str = None,
+    not_source: str = None,
+    destination: str = None,
+    not_destination: str = None,
+    in_interface: str = None,
+    not_in_interface: str = None,
+    out_interface: str = None,
+    not_out_interface: str = None,
     # After-rule arguments
-    to_destination=None,
-    to_source=None,
-    to_ports=None,
-    log_prefix=None,
+    to_destination: str = None,
+    to_source: str = None,
+    to_ports: int = None,
+    log_prefix: str = None,
     # Extras and extra shortcuts
-    destination_port=None,
-    source_port=None,
-    extras="",
+    destination_port: int = None,
+    source_port: int = None,
+    extras: str = "",
 ):
     """
     Add/remove iptables rules.
@@ -266,6 +263,9 @@ def rule(
         if source:
             args.extend(("-s", source))
 
+        if destination:
+            args.extend(("-d", destination))
+
         if in_interface:
             args.extend(("-i", in_interface))
 
@@ -277,6 +277,9 @@ def rule(
 
         if not_source:
             args.extend(("!", "-s", not_source))
+
+        if not_destination:
+            args.extend(("!", "-d", not_destination))
 
         if not_in_interface:
             args.extend(("!", "-i", not_in_interface))
@@ -304,8 +307,3 @@ def rule(
 
         # Build the final iptables command
         yield " ".join(args)
-
-        if action == "-D":
-            rules.remove(definition)
-        else:
-            rules.append(definition)

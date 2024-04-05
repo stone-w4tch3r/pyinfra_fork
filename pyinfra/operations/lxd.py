@@ -1,23 +1,24 @@
 """
 The LXD modules manage LXD containers
 """
+from typing import Any
 
 from pyinfra import host
 from pyinfra.api import operation
 from pyinfra.facts.lxd import LxdContainers
 
 
-def get_container_named(name, containers):
+def get_container_named(name: str, containers: list[dict[str, Any]]) -> dict[str, Any] | None:
     for container in containers:
         if container["name"] == name:
             return container
-    else:
-        return None
+        else:
+            return None
 
 
-@operation
+@operation()
 def container(
-    id,
+    id: str,
     present=True,
     image="ubuntu:16.04",
 ):
@@ -53,8 +54,6 @@ def container(
 
             # Command to remove the container:
             yield "lxc delete {0}".format(id)
-
-            current_containers.remove(container)
         else:
             host.noop("container {0} does not exist".format(id))
 
@@ -63,11 +62,5 @@ def container(
         if not container:
             # Command to create the container:
             yield "lxc launch {image} {id} < /dev/null".format(id=id, image=image)
-            current_containers.append(
-                {
-                    "name": id,
-                    "image": image,
-                },
-            )
         else:
             host.noop("container {0} exists".format(id))
