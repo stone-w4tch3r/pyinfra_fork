@@ -3,6 +3,7 @@ The Python module allows you to execute Python code within the context of a depl
 """
 
 from typing import Callable
+
 from pyinfra.api import FunctionCommand, operation
 
 

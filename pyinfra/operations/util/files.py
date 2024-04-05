@@ -83,7 +83,9 @@ def chmod(target: str, mode: str, recursive=False) -> StringCommand:
     return StringCommand(" ".join(args), QuoteString(target))
 
 
-def chown(target: str, user: str, group: str = None, recursive=False, dereference=True) -> StringCommand:
+def chown(
+    target: str, user: str, group: str = None, recursive=False, dereference=True
+) -> StringCommand:
     command = "chown"
     user_group = None
 

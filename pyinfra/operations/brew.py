@@ -5,7 +5,7 @@ Manage brew packages on mac/OSX. See https://brew.sh/
 import urllib
 
 from pyinfra import host
-from pyinfra.api import operation, Host
+from pyinfra.api import Host, operation
 from pyinfra.facts.brew import BrewCasks, BrewPackages, BrewTaps, BrewVersion, new_cask_cli
 
 from .util.packaging import ensure_packages

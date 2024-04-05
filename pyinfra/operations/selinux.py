@@ -4,7 +4,7 @@ Provides operations to set SELinux file contexts, booleans and port types.
 from enum import Enum
 
 from pyinfra import host
-from pyinfra.api import QuoteString, StringCommand, operation, OperationValueError
+from pyinfra.api import OperationValueError, QuoteString, StringCommand, operation
 from pyinfra.facts.selinux import FileContext, FileContextMapping, SEBoolean, SEPort, SEPorts
 from pyinfra.facts.server import Which
 
