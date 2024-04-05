@@ -115,7 +115,7 @@ def rpm(src: str, present=True):
         )
     """
 
-    yield from ensure_rpm(state, host, src, present, "dnf")
+    yield from ensure_rpm(host, src, present, "dnf")
 
 
 @operation(is_idempotent=False)

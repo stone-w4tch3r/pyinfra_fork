@@ -223,25 +223,13 @@ class FunctionCommand(PyinfraCommand):
         if "state" in argspec.args and "host" in argspec.args:
             return self.function(state, host, *self.args, **self.kwargs)
 
-        # Note: we use try/except here to catch any exception inside the greenlet
-        # and bubble that back out as a return value before re-raising outside.
-        # This is because gevent dumps stack traces when raised within a greenlet
-        # and we want to handle that ourselves.
         def execute_function():
             with ctx_config.use(state.config.copy()):
                 with ctx_host.use(host):
-                    try:
-                        self.function(*self.args, **self.kwargs)
-                    except Exception as e:
-                        return e
-                    else:
-                        return True
+                    self.function(*self.args, **self.kwargs)
 
         greenlet = gevent.spawn(execute_function)
-        res = greenlet.get()
-        if isinstance(res, Exception):
-            raise res
-        return res
+        return greenlet.get()
 
 
 class RsyncCommand(PyinfraCommand):

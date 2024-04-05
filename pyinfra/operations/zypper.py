@@ -91,7 +91,7 @@ def rpm(src, present=True):
         )
     """
 
-    yield from ensure_rpm(state, host, src, present, "zypper --non-interactive")
+    yield from ensure_rpm(host, src, present, "zypper --non-interactive")
 
 
 @operation(is_idempotent=False)

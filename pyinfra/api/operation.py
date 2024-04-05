@@ -397,9 +397,7 @@ def execute_immediately(state, host, op_hash):
     op_data = state.get_op_data_for_host(host, op_hash)
     op_data.parent_op_hash = host.executing_op_hash
     log_operation_start(op_meta, op_types=["nested"], prefix="")
-    status = run_host_op(state, host, op_hash)
-    if status is False:
-        state.fail_hosts({host})
+    run_host_op(state, host, op_hash)
 
 
 def _get_arg_value(arg):

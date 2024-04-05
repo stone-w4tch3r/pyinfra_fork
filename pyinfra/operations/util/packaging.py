@@ -158,7 +158,6 @@ def ensure_packages(
 
 
 def ensure_rpm(
-    state: State,
     host: Host,
     source: str,
     present: bool,

@@ -75,7 +75,6 @@ def user(
     mysql_host: str = None,
     mysql_port: int = None,
 ):
-    ...
     """
     Add/remove/update MySQL users.
 
@@ -297,7 +296,6 @@ def database(
     mysql_host: str = None,
     mysql_port: int = None,
 ):
-    ...
     """
     Add/remove MySQL databases.
 
