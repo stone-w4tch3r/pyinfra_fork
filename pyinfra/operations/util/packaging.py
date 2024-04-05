@@ -77,7 +77,8 @@ def ensure_packages(
         upgrade_command: as above for upgrading
         version_join: the package manager specific "joiner", ie ``=`` for \
             ``<apt_pkg>=<version>``
-        expand_package_fact: fact returning list of packages providing a capability (ie ``yum whatprovides``)
+        expand_package_fact: fact returning packages providing a capability \
+            (ie ``yum whatprovides``)
     """
 
     if packages_to_ensure is None:
