@@ -34,7 +34,7 @@ def key(src: str):
     yield "rpm --import {0}".format(src)
 
 
-@operation
+@operation()
 def repo(
     src: str,
     present=True,
@@ -91,7 +91,7 @@ def repo(
     )
 
 
-@operation
+@operation()
 def rpm(src: str, present=True):
     # NOTE: if updating this docstring also update `dnf.rpm`
     """
@@ -127,10 +127,10 @@ def update():
     yield "yum update -y"
 
 
-_update = update  # noqa: E305 (for use below where update is a kwarg)
+_update = update._inner  # noqa: E305 (for use below where update is a kwarg)
 
 
-@operation
+@operation()
 def packages(
     packages: str | list[str] = None,
     present=True,

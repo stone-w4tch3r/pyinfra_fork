@@ -3,16 +3,10 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from pyinfra.api.exceptions import InventoryError
-from pyinfra.connectors.terraform import make_names_data
+from pyinfra.connectors.terraform import TerraformInventoryConnector
 
 
-class TestVagrantConnector(TestCase):
-    def test_make_names_data_no_output_key(self):
-        with self.assertRaises(InventoryError) as context:
-            list(make_names_data())
-
-        assert context.exception.args[0] == "No Terraform output key!"
-
+class TestTerraformConnector(TestCase):
     @patch("pyinfra.connectors.terraform.local.shell")
     def test_make_names_data_no_output(self, fake_shell):
         fake_shell.return_value = json.dumps(
@@ -24,7 +18,7 @@ class TestVagrantConnector(TestCase):
         )
 
         with self.assertRaises(InventoryError) as context:
-            list(make_names_data("output_key"))
+            list(TerraformInventoryConnector.make_names_data("output_key"))
 
         assert (
             context.exception.args[0]
@@ -36,7 +30,7 @@ class TestVagrantConnector(TestCase):
         fake_shell.return_value = json.dumps({"output_key": "wrongvalue"})
 
         with self.assertRaises(InventoryError) as context:
-            list(make_names_data("output_key"))
+            list(TerraformInventoryConnector.make_names_data("output_key"))
 
         assert (
             context.exception.args[0]
@@ -48,7 +42,7 @@ class TestVagrantConnector(TestCase):
         fake_shell.return_value = json.dumps({"output_key": [None]})
 
         with self.assertRaises(InventoryError) as context:
-            list(make_names_data("output_key"))
+            list(TerraformInventoryConnector.make_names_data("output_key"))
 
         assert (
             context.exception.args[0]
@@ -58,7 +52,7 @@ class TestVagrantConnector(TestCase):
     @patch("pyinfra.connectors.terraform.local.shell")
     def test_make_names_data(self, fake_shell):
         fake_shell.return_value = json.dumps({"output_key": ["somehost"]})
-        data = list(make_names_data("output_key"))
+        data = list(TerraformInventoryConnector.make_names_data("output_key"))
 
         assert data == [
             (
@@ -71,7 +65,7 @@ class TestVagrantConnector(TestCase):
     @patch("pyinfra.connectors.terraform.local.shell")
     def test_make_names_data_nested(self, fake_shell):
         fake_shell.return_value = json.dumps({"output_key": {"nested_key": ["somehost"]}})
-        data = list(make_names_data("output_key.nested_key"))
+        data = list(TerraformInventoryConnector.make_names_data("output_key.nested_key"))
 
         assert data == [
             (
@@ -88,7 +82,7 @@ class TestVagrantConnector(TestCase):
             "ssh_hostname": "hostname",
         }
         fake_shell.return_value = json.dumps({"output_key": [host]})
-        data = list(make_names_data("output_key"))
+        data = list(TerraformInventoryConnector.make_names_data("output_key"))
 
         assert data == [
             (
@@ -106,7 +100,7 @@ class TestVagrantConnector(TestCase):
         fake_shell.return_value = json.dumps({"output_key": [host]})
 
         with self.assertRaises(InventoryError) as context:
-            list(make_names_data("output_key"))
+            list(TerraformInventoryConnector.make_names_data("output_key"))
 
         assert (
             context.exception.args[0]

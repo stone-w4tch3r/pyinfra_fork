@@ -1,32 +1,22 @@
 from os import path
 from random import shuffle
 
-from pyinfra import inventory, state
+from pyinfra import state
 from pyinfra.context import ctx_state
 
 from ..paramiko_util import PatchSSHTestCase
 from .util import run_cli
 
 
-class TestCliDeploy(PatchSSHTestCase):
-    def test_interdependent_deploy(self):
-        ctx_state.reset()
-
-        result = run_cli(
-            "somehost",
-            path.join("tests", "deploy", "deploy_interdependent.py"),
-            f'--chdir={path.join("tests", "deploy")}',
-        )
-        assert result.exit_code == 0, result.stdout
-
-        # Check every operation had commands/changes - this ensures that each
-        # combo (add/remove/add) always had changes.
-        for host, ops in state.ops.items():
-            for _, op in ops.items():
-                assert len(op["commands"]) > 0
-
-
 class TestCliDeployState(PatchSSHTestCase):
+    def _run_cli(self, hosts, filename):
+        return run_cli(
+            "-y",
+            ",".join(hosts),
+            path.join("tests", "test_cli", "deploy", filename),
+            f'--chdir={path.join("tests", "test_cli", "deploy")}',
+        )
+
     def _assert_op_data(self, correct_op_name_and_host_names):
         op_order = state.get_op_order()
 
@@ -40,7 +30,7 @@ class TestCliDeployState(PatchSSHTestCase):
             op_hash = op_order[i]
             op_meta = state.op_meta[op_hash]
 
-            assert list(op_meta["names"])[0] == correct_op_name
+            assert list(op_meta.names)[0] == correct_op_name
 
             for host in state.inventory:
                 if correct_host_names is True or host.name in correct_host_names:
@@ -92,11 +82,7 @@ class TestCliDeployState(PatchSSHTestCase):
             hosts = ["somehost", "anotherhost", "someotherhost"]
             shuffle(hosts)
 
-            result = run_cli(
-                ",".join(hosts),
-                path.join("tests", "deploy", "deploy.py"),
-                f'--chdir={path.join("tests", "deploy")}',
-            )
+            result = self._run_cli(hosts, "deploy.py")
             assert result.exit_code == 0, result.stdout
 
             self._assert_op_data(correct_op_name_and_host_names)
@@ -121,19 +107,7 @@ class TestCliDeployState(PatchSSHTestCase):
             hosts = ["somehost", "anotherhost", "someotherhost"]
             shuffle(hosts)
 
-            result = run_cli(
-                ",".join(hosts),
-                path.join("tests", "deploy", "deploy_random.py"),
-                f'--chdir={path.join("tests", "deploy")}',
-            )
+            result = self._run_cli(hosts, "deploy_random.py")
             assert result.exit_code == 0, result.stdout
 
             self._assert_op_data(correct_op_name_and_host_names)
-
-            for hostname, expected_fact_count in (
-                ("somehost", 2),
-                ("anotherhost", 0),
-                ("someotherhost", 1),
-            ):
-                host = inventory.get_host(hostname)
-                assert len(host.facts) == expected_fact_count

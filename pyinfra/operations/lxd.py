@@ -16,7 +16,7 @@ def get_container_named(name: str, containers: list[dict[str, Any]]) -> dict[str
             return None
 
 
-@operation
+@operation()
 def container(
     id: str,
     present=True,
@@ -54,8 +54,6 @@ def container(
 
             # Command to remove the container:
             yield "lxc delete {0}".format(id)
-
-            current_containers.remove(container)
         else:
             host.noop("container {0} does not exist".format(id))
 
@@ -64,11 +62,5 @@ def container(
         if not container:
             # Command to create the container:
             yield "lxc launch {image} {id} < /dev/null".format(id=id, image=image)
-            current_containers.append(
-                {
-                    "name": id,
-                    "image": image,
-                },
-            )
         else:
             host.noop("container {0} exists".format(id))

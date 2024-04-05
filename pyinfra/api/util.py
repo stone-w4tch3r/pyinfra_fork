@@ -1,21 +1,25 @@
+from __future__ import annotations
+
 from functools import wraps
 from hashlib import sha1
-from inspect import getframeinfo, getfullargspec, stack
+from inspect import getframeinfo, stack
 from io import BytesIO, StringIO
 from os import getcwd, path, stat
 from socket import error as socket_error, timeout as timeout_error
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 import click
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from paramiko import SSHException
+from typeguard import TypeCheckError, check_type
 
 import pyinfra
 from pyinfra import logger
 
 if TYPE_CHECKING:
     from pyinfra.api.host import Host
-    from pyinfra.api.state import State
+    from pyinfra.api.state import State, StateOperationMeta
+    from pyinfra.connectors.util import CommandOutput
 
 # 64kb chunks
 BLOCKSIZE = 65536
@@ -24,7 +28,7 @@ BLOCKSIZE = 65536
 TEMPLATES: Dict[Any, Any] = {}
 FILE_SHAS: Dict[Any, Any] = {}
 
-PYINFRA_API_DIR = path.dirname(__file__)
+PYINFRA_INSTALL_DIR = path.normpath(path.join(path.dirname(__file__), ".."))
 
 
 def get_file_path(state: "State", filename: str):
@@ -38,28 +42,6 @@ def get_file_path(state: "State", filename: str):
         relative_to = path.dirname(state.current_exec_filename)
 
     return path.join(relative_to, filename)
-
-
-def get_args_kwargs_spec(func: Callable[..., Any]) -> Tuple[List, Dict]:
-    args: List[Any] = []
-    kwargs: Dict[Any, Any] = {}
-
-    argspec = getfullargspec(func)
-    if not argspec.args:
-        return args, kwargs
-
-    if argspec.defaults:
-        kwargs = dict(
-            zip(
-                argspec.args[-len(argspec.defaults) :],
-                argspec.defaults,
-            ),
-        )
-        args = argspec.args[: -len(argspec.defaults)]
-    else:
-        args = argspec.args
-
-    return args, kwargs
 
 
 def get_kwargs_str(kwargs: Dict[Any, Any]):
@@ -85,14 +67,14 @@ def memoize(func: Callable[..., Any]):
     @wraps(func)
     def wrapper(*args, **kwargs):
         key = "{0}{1}".format(args, kwargs)
-        if key in wrapper.cache:
-            return wrapper.cache[key]
+        if key in wrapper.cache:  # type: ignore[attr-defined]
+            return wrapper.cache[key]  # type: ignore[attr-defined]
 
         value = func(*args, **kwargs)
-        wrapper.cache[key] = value
+        wrapper.cache[key] = value  # type: ignore[attr-defined]
         return value
 
-    wrapper.cache = {}  # type: ignore
+    wrapper.cache = {}  # type: ignore[attr-defined]
     return wrapper
 
 
@@ -147,7 +129,7 @@ def get_operation_order_from_stack(state: "State"):
     for stack_item in stack_items[i:]:
         frame = getframeinfo(stack_item[0])
 
-        if frame.filename.startswith(PYINFRA_API_DIR):
+        if frame.filename.startswith(PYINFRA_INSTALL_DIR):
             continue
 
         line_numbers.append(frame.lineno)
@@ -184,7 +166,7 @@ def get_template(filename_or_io: str):
     return template
 
 
-def sha1_hash(string: str):
+def sha1_hash(string: str) -> str:
     """
     Return the SHA1 of the input string.
     """
@@ -194,38 +176,30 @@ def sha1_hash(string: str):
     return hasher.hexdigest()
 
 
-def format_exception(e):
-    return "{0}{1}".format(e.__class__.__name__, e.args)
+def format_exception(e: Exception) -> str:
+    return f"{e.__class__.__name__}{e.args}"
 
 
-def print_host_combined_output(host: "Host", combined_output_lines):
-    for type_, line in combined_output_lines:
-        if type_ == "stderr":
-            logger.error(
-                "{0}{1}".format(
-                    host.print_prefix,
-                    click.style(line, "red"),
-                ),
-            )
+def print_host_combined_output(host: "Host", output: "CommandOutput") -> None:
+    for line in output:
+        if line.buffer_name == "stderr":
+            logger.error(f"{host.print_prefix}{click.style(line.line, 'red')}")
         else:
-            logger.error(
-                "{0}{1}".format(
-                    host.print_prefix,
-                    line,
-                ),
-            )
+            logger.error(f"{host.print_prefix}{line.line}")
 
 
-def log_operation_start(op_meta: Dict, op_types: Optional[List] = None, prefix: str = "--> "):
+def log_operation_start(
+    op_meta: "StateOperationMeta", op_types: Optional[List] = None, prefix: str = "--> "
+) -> None:
     op_types = op_types or []
-    if op_meta["serial"]:
+    if op_meta.global_arguments["_serial"]:
         op_types.append("serial")
-    if op_meta["run_once"]:
+    if op_meta.global_arguments["_run_once"]:
         op_types.append("run once")
 
     args = ""
-    if op_meta["args"]:
-        args = "({0})".format(", ".join(str(arg) for arg in op_meta["args"]))
+    if op_meta.args:
+        args = "({0})".format(", ".join(str(arg) for arg in op_meta.args))
 
     logger.info(
         "{0} {1} {2}".format(
@@ -236,7 +210,7 @@ def log_operation_start(op_meta: Dict, op_types: Optional[List] = None, prefix: 
                 ),
                 "blue",
             ),
-            click.style(", ".join(op_meta["names"]), bold=True),
+            click.style(", ".join(op_meta.names), bold=True),
             args,
         ),
     )
@@ -244,7 +218,7 @@ def log_operation_start(op_meta: Dict, op_types: Optional[List] = None, prefix: 
 
 def log_error_or_warning(
     host: "Host", ignore_errors: bool, description: str = "", continue_on_error: bool = False
-):
+) -> None:
     log_func = logger.error
     log_color = "red"
     log_text = "Error: " if description else "Error"
@@ -267,7 +241,7 @@ def log_error_or_warning(
     )
 
 
-def log_host_command_error(host: "Host", e, timeout: int = 0):
+def log_host_command_error(host: "Host", e: Exception, timeout: int = 0) -> None:
     if isinstance(e, timeout_error):
         logger.error(
             "{0}{1}".format(
@@ -351,7 +325,11 @@ class get_file_io:
     will open and close filenames, and leave IO objects alone.
     """
 
-    close = False
+    filename_or_io: Union[str, IO[Any]]
+    mode: str
+
+    _close: bool = False
+    _file_io: IO[Any]
 
     def __init__(self, filename_or_io, mode="rb"):
         if not (
@@ -378,25 +356,20 @@ class get_file_io:
         self.mode = mode
 
     def __enter__(self):
-        # If we have a read attribute, just use the object as-is
-        if hasattr(self.filename_or_io, "read"):
-            file_io = self.filename_or_io
-
-        # Otherwise, assume a filename and open it up
-        else:
+        if isinstance(self.filename_or_io, str):
             file_io = open(self.filename_or_io, self.mode)
-
-            # Attach to self for closing on __exit__
-            self.file_io = file_io
-            self.close = True
+            self._file_io = file_io
+            self._close = True
+        else:
+            file_io = self.filename_or_io
 
         # Ensure we're at the start of the file
         file_io.seek(0)
         return file_io
 
     def __exit__(self, type, value, traceback):
-        if self.close:
-            self.file_io.close()
+        if self._close:
+            self._file_io.close()
 
     @property
     def cache_key(self):
@@ -443,3 +416,15 @@ def get_path_permissions_mode(pathname: str):
 
     mode_octal = oct(stat(pathname).st_mode)
     return mode_octal[-3:]
+
+
+def raise_if_bad_type(
+    value: Any,
+    type_: Type,
+    exception: type[Exception],
+    message_prefix: str,
+):
+    try:
+        check_type(value, type_)
+    except TypeCheckError as e:
+        raise exception(f"{message_prefix}: {e}")

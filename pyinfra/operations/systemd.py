@@ -3,7 +3,7 @@ Manage systemd services.
 """
 
 from pyinfra import host
-from pyinfra.api import operation
+from pyinfra.api import StringCommand, operation
 from pyinfra.facts.systemd import SystemdEnabled, SystemdStatus, _make_systemctl_cmd
 
 from .util.service import handle_service_control
@@ -25,13 +25,13 @@ def daemon_reload(user_mode=False, machine: str = None, user_name: str = None):
         user_name=user_name,
     )
 
-    yield "{0} daemon-reload".format(systemctl_cmd)
+    yield StringCommand(systemctl_cmd, "daemon-reload")
 
 
-_daemon_reload = daemon_reload  # noqa: E305
+_daemon_reload = daemon_reload._inner  # noqa: E305
 
 
-@operation
+@operation()
 def service(
     service: str,
     running=True,
@@ -117,8 +117,9 @@ def service(
             user_mode=user_mode,
             machine=machine,
             user_name=user_name,
+            services=[service],
         ),
-        " ".join([systemctl_cmd, "{1}", "{0}"]),
+        " ".join([systemctl_cmd.get_raw_value(), "{1}", "{0}"]),
         running,
         restarted,
         reloaded,
@@ -131,15 +132,14 @@ def service(
             user_mode=user_mode,
             machine=machine,
             user_name=user_name,
+            services=[service],
         )
         is_enabled = systemd_enabled.get(service, False)
 
         # Isn't enabled and want enabled?
         if not is_enabled and enabled is True:
             yield "{0} enable {1}".format(systemctl_cmd, service)
-            systemd_enabled[service] = True
 
         # Is enabled and want disabled?
         elif is_enabled and enabled is False:
             yield "{0} disable {1}".format(systemctl_cmd, service)
-            systemd_enabled[service] = False

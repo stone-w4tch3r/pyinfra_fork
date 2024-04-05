@@ -1,5 +1,7 @@
 from os import path
+from typing import Optional
 
+# TODO: move to importlib.resources
 from pkg_resources import Requirement, ResolutionError, parse_version, require
 
 from pyinfra import __version__, state
@@ -9,37 +11,40 @@ from .exceptions import PyinfraError
 
 class ConfigDefaults:
     # % of hosts which have to fail for all operations to stop
-    FAIL_PERCENT = None
+    FAIL_PERCENT: Optional[int] = None
     # Seconds to timeout SSH connections
-    CONNECT_TIMEOUT = 10
-    # Temporary directory (on the remote side) to use for caching any files/downloads
-    TEMP_DIR = "/tmp"
+    CONNECT_TIMEOUT: int = 10
+    # Temporary directory (on the remote side) to use for caching any files/downloads, the default
+    # None value first tries to load the hosts' temporary directory configured via "TMPDIR" env
+    # variable, falling back to DEFAULT_TEMP_DIR if not set.
+    TEMP_DIR: Optional[str] = None
+    DEFAULT_TEMP_DIR: str = "/tmp"
     # Gevent pool size (defaults to #of target hosts)
-    PARALLEL = 0
+    PARALLEL: int = 0
     # Specify the required pyinfra version (using PEP 440 setuptools specifier)
-    REQUIRE_PYINFRA_VERSION = None
+    REQUIRE_PYINFRA_VERSION: Optional[str] = None
     # Specify any required packages (either using PEP 440 or a requirements file)
     # Note: this can also include pyinfra potentially replacing REQUIRE_PYINFRA_VERSION
-    REQUIRE_PACKAGES = None
+    REQUIRE_PACKAGES: Optional[str] = None
     # All these can be overridden inside individual operation calls:
     # Switch to this user (from ssh_user) using su before executing operations
-    SU_USER = None
-    USE_SU_LOGIN = False
-    SU_SHELL = None
-    PRESERVE_SU_ENV = False
+    SU_USER: Optional[str] = None
+    USE_SU_LOGIN: bool = False
+    SU_SHELL: bool = False
+    PRESERVE_SU_ENV: bool = False
     # Use sudo and optional user
-    SUDO = False
-    SUDO_USER = None
-    PRESERVE_SUDO_ENV = False
-    USE_SUDO_LOGIN = False
-    USE_SUDO_PASSWORD = False
+    SUDO: bool = False
+    SUDO_USER: Optional[str] = None
+    PRESERVE_SUDO_ENV: bool = False
+    USE_SUDO_LOGIN: bool = False
+    SUDO_PASSWORD: Optional[str] = None
     # Use doas and optional user
-    DOAS = False
-    DOAS_USER = None
+    DOAS: bool = False
+    DOAS_USER: Optional[str] = None
     # Only show errors but don't count as failure
-    IGNORE_ERRORS = False
+    IGNORE_ERRORS: bool = False
     # Shell to use to execute commands
-    SHELL = "sh"
+    SHELL: str = "sh"
 
 
 config_defaults = {key: value for key, value in ConfigDefaults.__dict__.items() if key.isupper()}
@@ -51,7 +56,7 @@ def check_pyinfra_version(version: str):
     running_version = parse_version(__version__)
     required_versions = Requirement.parse("pyinfra{0}".format(version))
 
-    if not required_versions.specifier.contains(running_version):
+    if running_version not in required_versions:  # type: ignore[operator]
         raise PyinfraError(
             f"pyinfra version requirement not met (requires {version}, running {__version__})"
         )
@@ -64,7 +69,7 @@ def check_require_packages(requirements_config):
     if isinstance(requirements_config, (list, tuple)):
         requirements = requirements_config
     else:
-        with open(path.join(state.cwd, requirements_config), encoding="utf-8") as f:
+        with open(path.join(state.cwd or "", requirements_config), encoding="utf-8") as f:
             requirements = [line.split("#egg=")[-1] for line in f.read().splitlines()]
 
     try:

@@ -1,6 +1,6 @@
 # Help & Support
 
-Need a hand with using `pyinfra` or have some questions? You can find official `pyinfra` communities below:
+Need a hand with using pyinfra or have some questions? You can find official pyinfra communities below:
 
 + Chat in [the `pyinfra` Matrix room](https://matrix.to/#/#pyinfra:matrix.org)
 + Ask questions on [Stack Overflow](https://stackoverflow.com/questions/tagged/pyinfra) (be sure to use the `pyinfra` tag!)

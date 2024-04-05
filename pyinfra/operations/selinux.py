@@ -21,9 +21,7 @@ class Protocol(Enum):
     DCCP = "dccp"
 
 
-@operation(
-    pipeline_facts={"seboolean": "bool_name"},
-)
+@operation()
 def boolean(bool_name: str, value: Boolean, persistent=False):
     """
     Set the specified SELinux boolean to the desired state.
@@ -58,14 +56,11 @@ def boolean(bool_name: str, value: Boolean, persistent=False):
     if host.get_fact(SEBoolean, boolean=bool_name) != value:
         persist = "-P " if persistent else ""
         yield StringCommand("setsebool", f"{persist}{bool_name}", value)
-        host.create_fact(SEBoolean, kwargs={"boolean": bool_name}, data=value)
     else:
         host.noop(f"boolean '{bool_name}' already had the value '{value}'")
 
 
-@operation(
-    pipeline_facts={"filecontext": "path"},
-)
+@operation()
 def file_context(path: str, se_type: str):
     """
     Set the SELinux type for the specified path to the specified value.
@@ -87,18 +82,11 @@ def file_context(path: str, se_type: str):
     current = host.get_fact(FileContext, path=path) or {}
     if se_type != current.get("type", ""):
         yield StringCommand("chcon", "-t", se_type, QuoteString(path))
-        host.create_fact(
-            FileContext,
-            kwargs={"path": path},
-            data=dict(current, **{"type": se_type}),
-        )
     else:
         host.noop(f"file_context: '{path}' already had type '{se_type}'")
 
 
-@operation(
-    pipeline_facts={"filecontextmapping": "target"},
-)
+@operation()
 def file_context_mapping(target: str, se_type: str = None, present=True):
     """
     Set the SELinux file context mapping for paths matching the target.
@@ -125,29 +113,20 @@ def file_context_mapping(target: str, se_type: str = None, present=True):
         raise ValueError("se_type must have a valid value if present is set")
 
     current = host.get_fact(FileContextMapping, target=target)
-    kwargs = {"target": target}
     if present:
         option = "-a" if len(current) == 0 else ("-m" if current.get("type") != se_type else "")
         if option != "":
             yield StringCommand("semanage", "fcontext", option, "-t", se_type, QuoteString(target))
-            host.create_fact(
-                FileContextMapping,
-                kwargs=kwargs,
-                data=dict(current, **{"type": se_type}),
-            )
         else:
             host.noop(f"mapping for '{target}' -> '{se_type}' already present")
     else:
         if len(current) > 0:
             yield StringCommand("semanage", "fcontext", "-d", QuoteString(target))
-            host.create_fact(FileContextMapping, kwargs=kwargs, data={})
         else:
             host.noop(f"no existing mapping for '{target}'")
 
 
-@operation(
-    pipeline_facts={"which": "sepolicy"},
-)
+@operation()
 def port(protocol: Protocol, port_num: int, se_type: str = None, present=True):
     """
     Set the SELinux type for the specified protocol and port.
@@ -198,9 +177,7 @@ def port(protocol: Protocol, port_num: int, se_type: str = None, present=True):
             host.noop(f"setype for '{protocol}/{port_num}' is already unset")
 
     if (present and (option != "")) or (not present and (current != "")):
-        if direct_get:
-            host.create_fact(SEPort, kwargs={"protocol": protocol, "port": port_num}, data=new_type)
-        else:
+        if not direct_get:
             if protocol not in port_info:
                 port_info[protocol] = {}
             port_info[protocol][str(port_num)] = new_type

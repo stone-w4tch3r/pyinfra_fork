@@ -92,6 +92,7 @@ def ensure_packages(
             for package in [package.rsplit(version_join, 1) for package in packages_to_ensure]
         ]
 
+    # todo are diff_packages needed at all?
     diff_packages = []
     diff_expanded_packages = {}
 
@@ -154,20 +155,6 @@ def ensure_packages(
             " ".join([shlex.quote(pkg) for pkg in joined_packages]),
         )
 
-        for package in diff_packages:  # add/remove from current packages
-            pkg_name = _package_name(package)
-            version = "unknown"
-            if isinstance(package, list):
-                version = package[1]
-
-            if present:
-                current_packages_to_versions[pkg_name] = {version}
-                current_packages_to_versions.update(diff_expanded_packages.get(pkg_name, {}))
-            else:
-                current_packages_to_versions.pop(pkg_name, None)
-                for name in diff_expanded_packages.get(pkg_name, {}):
-                    current_packages_to_versions.pop(name, None)
-
     if latest and upgrade_command and upgrade_packages:
         yield "{0} {1}".format(
             upgrade_command,
@@ -187,10 +174,10 @@ def ensure_rpm(
     # If source is a url
     if urlparse(source).scheme:
         # Generate a temp filename (with .rpm extension to please yum)
-        temp_filename = "{0}.rpm".format(state.get_temp_filename(source))
+        temp_filename = "{0}.rpm".format(host.get_temp_filename(source))
 
         # Ensure it's downloaded
-        yield from files.download(src=source, dest=temp_filename)
+        yield from files.download._inner(src=source, dest=temp_filename)
 
         # Override the source with the downloaded file
         source = temp_filename
@@ -210,8 +197,6 @@ def ensure_rpm(
         # If we had info, always install
         if info:
             yield "rpm -i {0}".format(source)
-            host.create_fact(RpmPackage, kwargs={"name": info["name"]}, data=info)
-
         # This happens if we download the package mid-deploy, so we have no info
         # but also don't know if it's installed. So check at runtime, otherwise
         # the install will fail.
@@ -221,8 +206,6 @@ def ensure_rpm(
     # Package exists but we don't want?
     elif exists and not present:
         yield "{0} remove -y {1}".format(package_manager_command, info["name"])
-        host.delete_fact(RpmPackage, kwargs={"name": info["name"]})
-
     else:
         host.noop(
             "rpm {0} is {1}".format(
@@ -232,6 +215,7 @@ def ensure_rpm(
         )
 
 
+# todo check this
 def ensure_yum_repo(
     host: Host,
     name_or_url: str,
@@ -256,13 +240,13 @@ def ensure_yum_repo(
 
     # If we don't want the repo, just remove any existing file
     if not present:
-        yield from files.file(path=filename, present=False)
+        yield from files.file._inner(path=filename, present=False)
         return
 
     # If we're a URL, download the repo if it doesn't exist
     if url:
         if not host.get_fact(File, path=filename):
-            yield from files.download(src=url, dest=filename)
+            yield from files.download._inner(src=url, dest=filename)
         return
 
     # Description defaults to name
@@ -285,7 +269,7 @@ def ensure_yum_repo(
 
     repo_lines.append("")
     repo = "\n".join(repo_lines)
-    repo = StringIO(repo)
+    repo_file = StringIO(repo)
 
     # Ensure this is the file on the server
-    yield from files.put(src=repo, dest=filename)
+    yield from files.put._inner(src=repo_file, dest=filename)

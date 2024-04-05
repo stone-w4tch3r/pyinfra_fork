@@ -9,7 +9,7 @@ from pyinfra.facts.cargo import CargoPackages
 from .util.packaging import ensure_packages
 
 
-@operation
+@operation()
 def packages(packages: str | list[str] = None, present=True, latest=False):
     """
     Install/remove/update cargo packages.

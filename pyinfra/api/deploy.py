@@ -5,29 +5,22 @@ creation (eg pyinfra-openstack).
 """
 
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, cast
+
+from typing_extensions import ParamSpec
 
 import pyinfra
-from pyinfra import context, logger
+from pyinfra import context
 from pyinfra.context import ctx_host, ctx_state
 
 from .arguments import pop_global_arguments
+from .arguments_typed import PyinfraOperation
 from .exceptions import PyinfraError
 from .host import Host
-from .util import get_args_kwargs_spec, get_call_location, memoize
+from .util import get_call_location
 
 if TYPE_CHECKING:
     from pyinfra.api.state import State
-
-
-@memoize
-def show_state_host_arguments_warning(call_location):
-    logger.warning(
-        (
-            "{0}:\n\tLegacy deploy function detected! Deploys should no longer define "
-            "`state` and `host` arguments."
-        ).format(call_location),
-    )
 
 
 def add_deploy(state: "State", deploy_func: Callable[..., Any], *args, **kwargs):
@@ -58,61 +51,37 @@ def add_deploy(state: "State", deploy_func: Callable[..., Any], *args, **kwargs)
                 deploy_func(*args, **kwargs)
 
 
-def deploy(func_or_name: Union[Callable[..., Any], str], data_defaults=None, _call_location=None):
+P = ParamSpec("P")
+
+
+def deploy(name: Optional[str] = None, data_defaults=None):
     """
     Decorator that takes a deploy function (normally from a pyinfra_* package)
     and wraps any operations called inside with any deploy-wide kwargs/data.
     """
 
-    # If not decorating, return function with config attached
-    if isinstance(func_or_name, str):
-        name = func_or_name
+    def decorator(func: Callable[P, Any]) -> PyinfraOperation[P]:
+        func.deploy_name = name or func.__name__  # type: ignore[attr-defined]
+        if data_defaults:
+            func.deploy_data = data_defaults  # type: ignore[attr-defined]
+        return _wrap_deploy(func)
 
-        def decorator(f):
-            f.deploy_name = name
-            if data_defaults:
-                f.deploy_data = data_defaults
-            return deploy(f, _call_location=get_call_location())
+    return decorator
 
-        return decorator
 
-    # Actually decorate!
-    func = func_or_name
-
-    # Check whether an operation is "legacy" - ie contains state=None, host=None kwargs
-    # TODO: remove this in v3
-    is_legacy = False
-    args, kwargs = get_args_kwargs_spec(func)
-    if all(key in kwargs and kwargs[key] is None for key in ("state", "host")):
-        show_state_host_arguments_warning(_call_location or get_call_location())
-        is_legacy = True
-    func.is_legacy = is_legacy  # type: ignore
-
+def _wrap_deploy(func: Callable[P, Any]) -> PyinfraOperation[P]:
     @wraps(func)
-    def decorated_func(*args, **kwargs):
+    def decorated_func(*args: P.args, **kwargs: P.kwargs) -> Any:
         deploy_kwargs, _ = pop_global_arguments(kwargs)
 
-        # If this is a legacy operation function (ie - state & host arg kwargs), ensure that state
-        # and host are included as kwargs.
-        if func.is_legacy:
-            if "state" not in kwargs:
-                kwargs["state"] = context.state
-            if "host" not in kwargs:
-                kwargs["host"] = context.host
-        # If not legacy, pop off any state/host kwargs that may come from legacy @deploy functions
-        else:
-            kwargs.pop("state", None)
-            kwargs.pop("host", None)
-
-        # Name the deploy
-        deploy_name = getattr(func, "deploy_name", func.__name__)
         deploy_data = getattr(func, "deploy_data", None)
 
         with context.host.deploy(
-            name=deploy_name,
+            name=func.deploy_name,  # type: ignore[attr-defined]
             kwargs=deploy_kwargs,
             data=deploy_data,
         ):
             return func(*args, **kwargs)
 
-    return decorated_func
+    decorated_func._inner = func  # type: ignore[attr-defined]
+    return cast(PyinfraOperation[P], decorated_func)

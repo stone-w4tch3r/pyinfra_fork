@@ -10,8 +10,6 @@ from unittest.mock import patch
 from pyinfra.api import Config, Inventory
 from pyinfra.api.util import get_kwargs_str
 
-from . import logger
-
 
 def get_command_string(command):
     value = command.get_raw_value()
@@ -162,8 +160,9 @@ class FakeHost:
 
     # Current context inside an @operation function
     in_op = True
+    in_callback_op = False
     current_op_hash = None
-    current_op_global_kwargs = None
+    current_op_global_arguments = None
 
     # Current context inside a @deploy function
     in_deploy = True
@@ -183,6 +182,9 @@ class FakeHost:
 
     def noop(self, description):
         self.noop_description = description
+
+    def get_temp_filename(*args):
+        return "_tempfile_"
 
     @staticmethod
     def _get_fact_key(fact_cls):
@@ -208,34 +210,9 @@ class FakeHost:
             fact_ordered_keys = {_sort_kwargs_str(key): value for key, value in fact.items()}
             kwargs_str = _sort_kwargs_str(get_kwargs_str(kwargs))
             if kwargs_str not in fact:
-                logger.info("Possible missing fact key: {0}".format(kwargs_str))
+                print("Possible missing fact key: {0}".format(kwargs_str))
             return fact_ordered_keys.get(kwargs_str)
         return fact
-
-    def create_fact(self, fact_cls, data=None, kwargs=None):
-        try:
-            fact = self.get_fact(fact_cls)
-        except KeyError:
-            fact_key = self._get_fact_key(fact_cls)
-            fact = self.fact[fact_key] = {}
-        if kwargs:
-            fact[_sort_kwargs_str(get_kwargs_str(kwargs))] = data
-        else:
-            fact_key = self._get_fact_key(fact_cls)
-            self.fact[fact_key] = data
-
-    def delete_fact(self, fact_cls, kwargs=None):
-        try:
-            fact = self.get_fact(fact_cls)
-        except KeyError:
-            return
-
-        ordered_kwargs = _sort_kwargs_str(get_kwargs_str(kwargs))
-        for key in fact.keys():
-            ordered_key = _sort_kwargs_str(key)
-            if ordered_key == ordered_kwargs:
-                fact.pop(key)
-                break
 
 
 class FakeFile:

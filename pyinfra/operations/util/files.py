@@ -4,8 +4,8 @@ from datetime import datetime
 from pyinfra.api import QuoteString, StringCommand
 
 
-def unix_path_join(*parts) -> str:
-    parts = list(parts)
+def unix_path_join(*path_parts) -> str:
+    parts = list(path_parts)
     parts[0:-1] = [part.rstrip("/") for part in parts[0:-1]]
     return "/".join(parts)
 

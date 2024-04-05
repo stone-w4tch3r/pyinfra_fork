@@ -1,19 +1,3 @@
-"""
-The ``@vagrant`` connector reads the current Vagrant status and generates an
-inventory for any running VMs.
-
-.. code:: shell
-
-    # Run on all hosts
-    pyinfra @vagrant ...
-
-    # Run on a specific VM
-    pyinfra @vagrant/my-vm-name ...
-
-    # Run on multiple named VMs
-    pyinfra @vagrant/my-vm-name,@vagrant/another-vm-name ...
-"""
-
 import json
 from os import path
 from queue import Queue
@@ -23,6 +7,8 @@ from pyinfra import local, logger
 from pyinfra.api.exceptions import InventoryError
 from pyinfra.api.util import memoize
 from pyinfra.progress import progress_spinner
+
+from .base import BaseConnector
 
 
 def _get_vagrant_ssh_config(queue, progress, target):
@@ -68,7 +54,7 @@ def get_vagrant_config(limit=None):
             targets.append(target)
 
     threads = []
-    config_queue = Queue()
+    config_queue = Queue()  # type: ignore
 
     with progress_spinner(targets) as progress:
         for target in targets:
@@ -128,46 +114,67 @@ def _make_name_data(host):
     return "@vagrant/{0}".format(host["Host"]), data, groups
 
 
-def make_names_data(limit=None):
-    vagrant_ssh_info = get_vagrant_config(limit)
+class VagrantInventoryConnector(BaseConnector):
+    """
+    The ``@vagrant`` connector reads the current Vagrant status and generates an
+    inventory for any running VMs.
 
-    logger.debug("Got Vagrant SSH info: \n%s", vagrant_ssh_info)
+    .. code:: shell
 
-    hosts = []
-    current_host = None
+        # Run on all hosts
+        pyinfra @vagrant ...
 
-    for line in vagrant_ssh_info:
-        # Vagrant outputs an empty line between each host
-        if not line:
-            if current_host:
-                hosts.append(_make_name_data(current_host))
+        # Run on a specific VM
+        pyinfra @vagrant/my-vm-name ...
 
-            current_host = None
-            continue
+        # Run on multiple named VMs
+        pyinfra @vagrant/my-vm-name,@vagrant/another-vm-name ...
+    """
 
-        key, value = line.split(" ", 1)
+    @staticmethod
+    def make_names_data(name=None):
+        vagrant_ssh_info = get_vagrant_config(name)
 
-        if key == "Host":
-            if current_host:
-                hosts.append(_make_name_data(current_host))
+        logger.debug("Got Vagrant SSH info: \n%s", vagrant_ssh_info)
 
-            # Set the new host
-            current_host = {
-                key: value,
-            }
+        hosts = []
+        current_host = None
 
-        elif current_host:
-            current_host[key] = value
+        for line in vagrant_ssh_info:
+            # Vagrant outputs an empty line between each host
+            if not line:
+                if current_host:
+                    hosts.append(_make_name_data(current_host))
 
-        else:
-            logger.debug("Extra Vagrant SSH key/value (%s=%s)", key, value)
+                current_host = None
+                continue
 
-    if current_host:
-        hosts.append(_make_name_data(current_host))
+            key, value = line.split(" ", 1)
 
-    if not hosts:
-        if limit:
-            raise InventoryError("No running Vagrant instances matching `{0}` found!".format(limit))
-        raise InventoryError("No running Vagrant instances found!")
+            if key == "Host":
+                if current_host:
+                    hosts.append(_make_name_data(current_host))
 
-    return hosts
+                # Set the new host
+                current_host = {
+                    key: value,
+                }
+
+            elif current_host:
+                current_host[key] = value
+
+            else:
+                logger.debug("Extra Vagrant SSH key/value (%s=%s)", key, value)
+
+        if current_host:
+            hosts.append(_make_name_data(current_host))
+
+        if not hosts:
+            if name:
+                raise InventoryError(
+                    "No running Vagrant instances matching `{0}` found!".format(name)
+                )
+            raise InventoryError("No running Vagrant instances found!")
+
+        for host in hosts:
+            yield host

@@ -5,64 +5,124 @@ to the deploy state. This is then run later by pyinfra's ``__main__`` or the
 :doc:`./pyinfra.api.operations` module.
 """
 
+from __future__ import annotations
+
 from functools import wraps
+from inspect import signature
+from io import StringIO
 from types import FunctionType
-from typing import TYPE_CHECKING
+from typing import Any, Callable, Generator, Iterator, Optional, cast
+
+from typing_extensions import ParamSpec
 
 import pyinfra
 from pyinfra import context, logger
 from pyinfra.context import ctx_host, ctx_state
 
-from .arguments import get_execution_kwarg_keys, pop_global_arguments
-from .command import StringCommand
+from .arguments import EXECUTION_KWARG_KEYS, AllArguments, pop_global_arguments
+from .arguments_typed import PyinfraOperation
+from .command import PyinfraCommand, StringCommand
 from .exceptions import OperationValueError, PyinfraError
 from .host import Host
 from .operations import run_host_op
+from .state import State, StateOperationHostData, StateOperationMeta
 from .util import (
-    get_args_kwargs_spec,
     get_call_location,
+    get_file_sha1,
     get_operation_order_from_stack,
     log_operation_start,
     make_hash,
-    memoize,
 )
-
-if TYPE_CHECKING:
-    from pyinfra.api.state import State
 
 op_meta_default = object()
 
 
 class OperationMeta:
-    combined_output_lines = None
+    _hash: str
 
-    def __init__(self, hash=None, commands=None):
-        # Wrap all the attributes
-        commands = commands or []
-        self.commands = commands
-        self.hash = hash
+    _combined_output_lines = None
+    _commands: Optional[list[Any]] = None
+    _maybe_is_change: Optional[bool] = False
+    _success: Optional[bool] = None
 
-        # Changed flag = did we do anything?
-        self.changed = len(self.commands) > 0
+    def __init__(self, hash, is_change: Optional[bool]):
+        self._hash = hash
+        self._maybe_is_change = is_change
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return Operation object as a string.
         """
 
+        if self._commands is not None:
+            return (
+                "OperationMeta(executed=True, "
+                f"success={self.did_succeed}, hash={self._hash}, commands={len(self._commands)})"
+            )
         return (
-            f"OperationMeta(commands={len(self.commands)}, "
-            f"changed={self.changed}, hash={self.hash})"
+            "OperationMeta(executed=False, "
+            f"maybeChange={self._maybe_is_change}, hash={self._hash})"
         )
 
-    def set_combined_output_lines(self, combined_output_lines):
-        self.combined_output_lines = combined_output_lines
+    # Completion & status checks
+    def set_complete(
+        self,
+        success: bool,
+        commands: list[Any],
+        combined_output_lines,
+    ) -> None:
+        if self.is_complete():
+            raise RuntimeError("Cannot complete an already complete operation")
+        self._success = success
+        self._commands = commands
+        self._combined_output_lines = combined_output_lines
 
+    def is_complete(self) -> bool:
+        return self._success is not None
+
+    def _raise_if_not_complete(self) -> None:
+        if not self.is_complete():
+            raise RuntimeError("Cannot evaluate operation result before execution")
+
+    def _did_change(self) -> bool:
+        return bool(self._success and len(self._commands or []) > 0)
+
+    @property
+    def did_change(self):
+        return context.host.when(self._did_change)
+
+    @property
+    def did_not_change(self):
+        return context.host.when(lambda: not self._did_change())
+
+    def did_succeed(self) -> bool:
+        self._raise_if_not_complete()
+        return self._success is True
+
+    def did_error(self) -> bool:
+        self._raise_if_not_complete()
+        return self._success is False
+
+    # TODO: deprecated, remove in v4
+    @property
+    def changed(self) -> bool:
+        if self.is_complete():
+            return self._did_change()
+
+        if self._maybe_is_change is not None:
+            return self._maybe_is_change
+
+        op_data = context.state.get_op_data_for_host(context.host, self._hash)
+        cmd_gen = op_data.command_generator
+        for _ in cmd_gen():
+            return True
+        return False
+
+    # Output lines
     def _get_lines(self, types=("stdout", "stderr")):
-        if self.combined_output_lines is None:
-            raise AttributeError("Output is not available until operations have been executed")
-
-        return [line for type_, line in self.combined_output_lines if type_ in types]
+        self._raise_if_not_complete()
+        assert self._combined_output_lines is not None
+        return [line for type_, line in self._combined_output_lines if type_ in types]
 
     @property
     def stdout_lines(self):
@@ -73,15 +133,15 @@ class OperationMeta:
         return self._get_lines(types=("stderr",))
 
     @property
-    def stdout(self):
+    def stdout(self) -> str:
         return "\n".join(self.stdout_lines)
 
     @property
-    def stderr(self):
+    def stderr(self) -> str:
         return "\n".join(self.stderr_lines)
 
 
-def add_op(state: "State", op_func, *args, **kwargs):
+def add_op(state: State, op_func, *args, **kwargs):
     """
     Prepare & add an operation to ``pyinfra.state`` by executing it on all hosts.
 
@@ -112,85 +172,71 @@ def add_op(state: "State", op_func, *args, **kwargs):
     return results
 
 
-@memoize
-def show_state_host_arguments_warning(call_location):
-    logger.warning(
-        (
-            "{0}:\n\tLegacy operation function detected! Operations should no longer define "
-            "`state` and `host` arguments."
-        ).format(call_location),
-    )
+P = ParamSpec("P")
 
 
 def operation(
-    func=None,
-    pipeline_facts=None,
     is_idempotent: bool = True,
-    idempotent_notice=None,
-    frame_offset: int = 1,
-):
+    idempotent_notice: Optional[str] = None,
+    is_deprecated: bool = False,
+    deprecated_for: Optional[str] = None,
+    _set_in_op: bool = True,
+) -> Callable[[Callable[P, Generator]], PyinfraOperation[P]]:
     """
     Decorator that takes a simple module function and turn it into the internal
     operation representation that consists of a list of commands + options
     (sudo, (sudo|su)_user, env).
     """
 
-    # If not decorating, return function with config attached
-    if func is None:
+    def decorator(f: Callable[P, Generator]) -> PyinfraOperation[P]:
+        f.is_idempotent = is_idempotent  # type: ignore[attr-defined]
+        f.idempotent_notice = idempotent_notice  # type: ignore[attr-defined]
+        f.is_deprecated = is_deprecated  # type: ignore[attr-defined]
+        f.deprecated_for = deprecated_for  # type: ignore[attr-defined]
+        return _wrap_operation(f, _set_in_op=_set_in_op)
 
-        def decorator(f):
-            f.pipeline_facts = pipeline_facts
-            f.is_idempotent = is_idempotent
-            f.idempotent_notice = idempotent_notice
-            return operation(f, frame_offset=2)
+    return decorator
 
-        return decorator
 
-    # Check whether an operation is "legacy" - ie contains state=None, host=None kwargs
-    # TODO: remove this in v3
-    is_legacy = False
-    args, kwargs = get_args_kwargs_spec(func)
-    if all(key in kwargs and kwargs[key] is None for key in ("state", "host")):
-        show_state_host_arguments_warning(get_call_location(frame_offset=frame_offset))
-        is_legacy = True
-    func.is_legacy = is_legacy
-
-    # Actually decorate!
+def _wrap_operation(func: Callable[P, Generator], _set_in_op: bool = True) -> PyinfraOperation[P]:
     @wraps(func)
-    def decorated_func(*args, **kwargs):
+    def decorated_func(*args: P.args, **kwargs: P.kwargs) -> OperationMeta:
         state = context.state
         host = context.host
+
+        if host.in_op:
+            raise Exception(
+                "Operation called within another operation, this is not allowed! Use the `_inner` "
+                + "function to call the underlying operation."
+            )
+
+        if func.is_deprecated:  # type: ignore[attr-defined]
+            if func.deprecated_for:  # type: ignore[attr-defined]
+                logger.warning(
+                    f"The {get_operation_name_from_func(func)} operation is "
+                    + f"deprecated, please use: {func.deprecated_for}",  # type: ignore[attr-defined] # noqa
+                )
+            else:
+                logger.warning(f"The {get_operation_name_from_func(func)} operation is deprecated")
 
         # Configure operation
         #
         # Get the meta kwargs (globals that apply to all hosts)
-        global_kwargs, global_kwarg_keys = pop_global_arguments(kwargs)
+        global_arguments, global_argument_keys = pop_global_arguments(kwargs)
 
-        # If this op is being called inside another, just return here
-        # (any unwanted/op-related kwargs removed above).
-        if host.in_op:
-            if global_kwarg_keys:
-                _error_msg = "Nested operation called with global arguments: {0} ({1})".format(
-                    global_kwarg_keys,
-                    get_call_location(),
-                )
-                raise PyinfraError(_error_msg)
-            return func(*args, **kwargs) or []
-
-        kwargs = _solve_legacy_operation_arguments(func, state, host, kwargs)
-        names, add_args = _generate_operation_name(func, host, kwargs, global_kwargs)
-        op_order, op_hash = _solve_operation_consistency(names, state, host)
+        names, add_args = generate_operation_name(func, host, kwargs, global_arguments)
+        op_order, op_hash = solve_operation_consistency(names, state, host)
 
         # Ensure shared (between servers) operation meta, mutates state
-        op_meta = _ensure_shared_op_meta(state, op_hash, op_order, global_kwargs, names)
+        op_meta = ensure_shared_op_meta(state, op_hash, op_order, global_arguments, names)
 
         # Attach normal args, if we're auto-naming this operation
         if add_args:
-            op_meta = _attach_args(op_meta, args, kwargs)
+            op_meta = attach_args(op_meta, args, kwargs)
 
         # Check if we're actually running the operation on this host
         # Run once and we've already added meta for this op? Stop here.
-        if op_meta["run_once"]:
+        if op_meta.global_arguments["_run_once"]:
             has_run = False
             for ops in state.ops.values():
                 if op_hash in ops:
@@ -198,75 +244,87 @@ def operation(
                     break
 
             if has_run:
-                return OperationMeta(op_hash)
+                return OperationMeta(op_hash, is_change=False)
 
-        # "Run" operation
-        #
+        # "Run" operation - here we make a generator that will yield out actual commands to execute
+        # and, if we're diff-ing, we then iterate the generator now to determine if any changes
+        # *would* be made based on the *current* remote state.
 
-        # Otherwise, flag as in-op and run it to get the commands
-        host.in_op = True
-        host.current_op_hash = op_hash
-        host.current_op_global_kwargs = global_kwargs
+        def command_generator() -> Iterator[PyinfraCommand]:
+            # Check global _if_ argument function and do nothing if returns False
+            if state.is_executing:
+                _ifs = global_arguments.get("_if")
+                if _ifs and not all(_if() for _if in _ifs):
+                    return
 
-        # Convert to list as the result may be a generator
-        commands = func(*args, **kwargs)
-        commands = [  # convert any strings -> StringCommand's
-            StringCommand(command.strip()) if isinstance(command, str) else command
-            for command in commands
-        ]
+            host.in_op = _set_in_op
+            host.current_op_hash = op_hash
+            host.current_op_global_arguments = global_arguments
 
-        host.in_op = False
-        host.current_op_hash = None
-        host.current_op_global_kwargs = None
+            try:
+                for command in func(*args, **kwargs):
+                    if isinstance(command, str):
+                        command = StringCommand(command.strip())
+                    yield command
+            finally:
+                host.in_op = False
+                host.current_op_hash = None
+                host.current_op_global_arguments = None
+
+        op_is_change = None
+        if state.should_check_for_changes():
+            op_is_change = False
+            for _ in command_generator():
+                op_is_change = True
+                break
+        else:
+            # If not calling the op function to check for change we still want to ensure the args
+            # are valid, so use Signature.bind to trigger any TypeError.
+            signature(func).bind(*args, **kwargs)
 
         # Add host-specific operation data to state, this mutates state
-        operation_meta = _update_state_meta(state, host, commands, op_hash, op_meta, global_kwargs)
+        host_meta = state.get_meta_for_host(host)
+        host_meta.ops += 1
+        if op_is_change:
+            host_meta.ops_change += 1
+        else:
+            host_meta.ops_no_change += 1
+
+        operation_meta = OperationMeta(op_hash, op_is_change)
+
+        # Add the server-relevant commands
+        op_data = StateOperationHostData(command_generator, global_arguments, operation_meta)
+        state.set_op_data_for_host(host, op_hash, op_data)
+
+        # If we're already in the execution phase, execute this operation immediately
+        if state.is_executing:
+            execute_immediately(state, host, op_hash)
 
         # Return result meta for use in deploy scripts
         return operation_meta
 
-    decorated_func._pyinfra_op = func  # type: ignore
-    return decorated_func
+    decorated_func._inner = func  # type: ignore[attr-defined]
+    return cast(PyinfraOperation[P], decorated_func)
 
 
-def _solve_legacy_operation_arguments(op_func, state, host, kwargs):
-    """
-    Solve legacy operation arguments.
-    """
-
-    # If this is a legacy operation function (ie - state & host arg kwargs), ensure that state
-    # and host are included as kwargs.
-
-    # Legacy operation arguments
-    if op_func.is_legacy:
-        if "state" not in kwargs:
-            kwargs["state"] = state
-        if "host" not in kwargs:
-            kwargs["host"] = host
-    # If not legacy, pop off any state/host kwargs that may come from legacy @deploy functions
+def get_operation_name_from_func(func):
+    if func.__module__:
+        module_bits = func.__module__.split(".")
+        module_name = module_bits[-1]
+        return "{0}.{1}".format(module_name, func.__name__)
     else:
-        kwargs.pop("state", None)
-        kwargs.pop("host", None)
-
-    return kwargs
+        return func.__name__
 
 
-def _generate_operation_name(func, host, kwargs, global_kwargs):
+def generate_operation_name(func, host, kwargs, global_arguments):
     # Generate an operation name if needed (Module/Operation format)
-    name = global_kwargs.get("name")
+    name = global_arguments.get("name")
     add_args = False
     if name:
         names = {name}
     else:
         add_args = True
-
-        if func.__module__:
-            module_bits = func.__module__.split(".")
-            module_name = module_bits[-1]
-            name = "{0}/{1}".format(module_name.title(), func.__name__.title())
-        else:
-            name = func.__name__
-
+        name = get_operation_name_from_func(func)
         names = {name}
 
     if host.current_deploy_name:
@@ -275,7 +333,7 @@ def _generate_operation_name(func, host, kwargs, global_kwargs):
     return names, add_args
 
 
-def _solve_operation_consistency(names, state, host):
+def solve_operation_consistency(names, state, host):
     # Operation order is used to tie-break available nodes in the operation DAG, in CLI mode
     # we use stack call order so this matches as defined by the user deploy code.
     if pyinfra.is_cli:
@@ -310,87 +368,57 @@ def _solve_operation_consistency(names, state, host):
 
 
 # NOTE: this function mutates state.op_meta for this hash
-def _ensure_shared_op_meta(state, op_hash, op_order, global_kwargs, names):
-    op_meta = state.op_meta.setdefault(
-        op_hash,
-        {
-            "names": set(),
-            "args": [],
-            "op_order": op_order,
-        },
-    )
+def ensure_shared_op_meta(
+    state: State,
+    op_hash: str,
+    op_order: tuple[int, ...],
+    global_arguments: AllArguments,
+    names: set[str],
+):
+    op_meta = state.op_meta.setdefault(op_hash, StateOperationMeta(op_order))
 
-    for key in get_execution_kwarg_keys():
-        global_value = global_kwargs.pop(key)
-        op_meta_value = op_meta.get(key, op_meta_default)
+    for key in EXECUTION_KWARG_KEYS:
+        global_value = global_arguments.pop(key)  # type: ignore[misc]
+        op_meta_value = op_meta.global_arguments.get(key, op_meta_default)
 
         if op_meta_value is not op_meta_default and global_value != op_meta_value:
             raise OperationValueError("Cannot have different values for `{0}`.".format(key))
 
-        op_meta[key] = global_value
+        op_meta.global_arguments[key] = global_value  # type: ignore[literal-required]
 
     # Add any new names to the set
-    op_meta["names"].update(names)
+    op_meta.names.update(names)
 
     return op_meta
 
 
-def _execute_immediately(state, host, op_data, op_meta, op_hash):
-    logger.warning(
-        f"Note: nested operations are currently in beta ({get_call_location()})\n"
-        "    More information: "
-        "https://docs.pyinfra.com/en/2.x/using-operations.html#nested-operations",
-    )
-    op_data["parent_op_hash"] = host.executing_op_hash
+def execute_immediately(state, host, op_hash):
+    op_meta = state.get_op_meta(op_hash)
+    op_data = state.get_op_data_for_host(host, op_hash)
+    op_data.parent_op_hash = host.executing_op_hash
     log_operation_start(op_meta, op_types=["nested"], prefix="")
     status = run_host_op(state, host, op_hash)
     if status is False:
         state.fail_hosts({host})
 
 
-def _attach_args(op_meta, args, kwargs):
-    for arg in args:
-        if isinstance(arg, FunctionType):
-            arg = arg.__name__
+def _get_arg_value(arg):
+    if isinstance(arg, FunctionType):
+        return arg.__name__
+    if isinstance(arg, StringIO):
+        return f"StringIO(hash={get_file_sha1(arg)})"
+    return arg
 
-        if arg not in op_meta["args"]:
-            op_meta["args"].append(arg)
+
+def attach_args(op_meta, args, kwargs):
+    for arg in args:
+        if arg not in op_meta.args:
+            op_meta.args.append(str(_get_arg_value(arg)))
 
     # Attach keyword args
     for key, value in kwargs.items():
-        if isinstance(value, FunctionType):
-            value = value.__name__
-
-        arg = "=".join((str(key), str(value)))
-        if arg not in op_meta["args"]:
-            op_meta["args"].append(arg)
+        arg = "=".join((str(key), str(_get_arg_value(value))))
+        if arg not in op_meta.args:
+            op_meta.args.append(arg)
 
     return op_meta
-
-
-# NOTE: this function mutates state.meta for this host
-def _update_state_meta(state, host, commands, op_hash, op_meta, global_kwargs):
-    # We're doing some commands, meta/ops++
-    state.meta[host]["ops"] += 1
-    state.meta[host]["commands"] += len(commands)
-
-    if commands:
-        state.meta[host]["ops_change"] += 1
-    else:
-        state.meta[host]["ops_no_change"] += 1
-
-    operation_meta = OperationMeta(op_hash, commands)
-
-    # Add the server-relevant commands
-    op_data = {
-        "commands": commands,
-        "global_kwargs": global_kwargs,
-        "operation_meta": operation_meta,
-    }
-    state.set_op_data(host, op_hash, op_data)
-
-    # If we're already in the execution phase, execute this operation immediately
-    if state.is_executing:
-        _execute_immediately(state, host, op_data, op_meta, op_hash)
-
-    return operation_meta

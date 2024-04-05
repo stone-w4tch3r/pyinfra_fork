@@ -3,6 +3,7 @@ name: Lint & Test
 on:
   push:
     branches:
+      - 3.x
       - 2.x
       - 1.x
       - 0.x
@@ -30,8 +31,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install '.[test]'
-      - run: scripts/check-operation-stub-typing.sh
-      - run: mypy pyinfra pyinfra_cli
+      - run: mypy
 
   # Unit tests
   #
@@ -43,15 +43,12 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-20.04, ubuntu-latest]
-        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
         include:
           - os: macos-12
             python-version: "3.11"
           - os: windows-2022
             python-version: "3.11"
-        exclude:
-          - os: ubuntu-latest
-            python-version: "3.6"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3

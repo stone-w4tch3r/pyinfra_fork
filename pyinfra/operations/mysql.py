@@ -52,7 +52,7 @@ def sql(
     )
 
 
-@operation
+@operation()
 def user(
     user: str,
     present: bool = True,
@@ -163,21 +163,9 @@ def user(
                 host=mysql_host,
                 port=mysql_port,
             )
-            current_users.pop(user_host)
         else:
             host.noop("mysql user {0}@{1} does not exist".format(user, user_hostname))
         return
-
-    new_or_updated_user_fact = {
-        "ssl_type": "ANY" if require == "SSL" else require,
-        "ssl_cipher": require_cipher,
-        "x509_issuer": require_issuer,
-        "x509_subject": require_subject,
-        "max_user_connections": max_connections,
-        "max_questions": max_queries_per_hour,
-        "max_updates": max_updates_per_hour,
-        "max_connections": max_connections_per_hour,
-    }
 
     if present and not is_present:
         sql_bits = ['CREATE USER "{0}"@"{1}"'.format(user, user_hostname)]
@@ -224,8 +212,6 @@ def user(
             host=mysql_host,
             port=mysql_port,
         )
-
-        current_users[user_host] = new_or_updated_user_fact
 
     if present and is_present:
         current_user = current_users.get(user_host)
@@ -278,14 +264,13 @@ def user(
                 host=mysql_host,
                 port=mysql_port,
             )
-            current_user.update(new_or_updated_user_fact)
         else:
             host.noop("mysql user {0}@{1} exists".format(user, user_hostname))
 
     # If we're here either the user exists or we just created them; either way
     # now we can check any privileges are set.
     if privileges:
-        yield from _privileges(
+        yield from _privileges._inner(
             user,
             privileges,
             user_hostname=user_hostname,
@@ -296,7 +281,7 @@ def user(
         )
 
 
-@operation
+@operation()
 def database(
     database: str,
     # Desired database settings
@@ -361,7 +346,6 @@ def database(
                 host=mysql_host,
                 port=mysql_port,
             )
-            current_databases.pop(database)
         else:
             host.noop("mysql database {0} does not exist".format(database))
         return
@@ -383,16 +367,12 @@ def database(
             host=mysql_host,
             port=mysql_port,
         )
-        current_databases[database] = {
-            "collate": collate,
-            "charset": charset,
-        }
     else:
         host.noop("mysql database {0} exists".format(database))
 
     # Ensure any user privileges for this database
     if user and user_privileges:
-        yield from privileges(
+        yield from privileges._inner(
             user,
             user_hostname=user_hostname,
             privileges=user_privileges,
@@ -404,7 +384,7 @@ def database(
         )
 
 
-@operation
+@operation()
 def privileges(
     user: str,
     privileges: str | list[str],
@@ -505,9 +485,6 @@ def privileges(
     privileges_to_revoke = existing_privileges.difference(privileges)
     # Find / grant any privileges that we want but do not exist
     privileges_to_grant = privileges - existing_privileges
-
-    user_grants[database_table] -= privileges_to_revoke
-    user_grants[database_table].update(privileges_to_grant)
 
     if privileges_to_grant:
         # We will grant something on this table, no need to revoke "USAGE" as it will be overridden

@@ -2,10 +2,10 @@
 Manage apt packages and repositories.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from urllib.parse import urlparse
 
-from pyinfra import host, state
+from pyinfra import host
 from pyinfra.api import OperationError, operation
 from pyinfra.facts.apt import AptKeys, AptSources, parse_apt_repo
 from pyinfra.facts.deb import DebPackage, DebPackages
@@ -36,7 +36,7 @@ def noninteractive_apt(command: str, force=False):
     return " ".join(args)
 
 
-@operation
+@operation()
 def key(src: str = None, keyserver: str = None, keyid: str = None):
     """
     Add apt gpg keys with ``apt-key``.
@@ -78,10 +78,6 @@ def key(src: str = None, keyserver: str = None, keyid: str = None):
                 yield "(wget -O - {0} || curl -sSLf {0}) | apt-key add -".format(src)
             else:
                 yield "apt-key add {0}".format(src)
-
-            if keyid:
-                for kid in keyid:
-                    existing_keys[kid] = {}
         else:
             host.noop("All keys from {0} are already available in the apt keychain".format(src))
 
@@ -98,8 +94,6 @@ def key(src: str = None, keyserver: str = None, keyid: str = None):
                 keyserver,
                 " ".join(needed_keys),
             )
-            for kid in keyid:
-                existing_keys[kid] = {}
         else:
             host.noop(
                 "Keys {0} are already available in the apt keychain".format(
@@ -108,7 +102,7 @@ def key(src: str = None, keyserver: str = None, keyid: str = None):
             )
 
 
-@operation
+@operation()
 def repo(src: str, present=True, filename: str = None):
     """
     Add/remove apt repositories.
@@ -144,24 +138,20 @@ def repo(src: str, present=True, filename: str = None):
 
     # Doesn't exist and we want it
     if not is_present and present:
-        yield from files.line(
-            filename,
-            src,
+        yield from files.line._inner(
+            path=filename,
+            line=src,
             escape_regex_characters=True,
         )
-        apt_sources.append(repo)
 
     # Exists and we don't want it
     elif is_present and not present:
-        yield from files.line(
-            filename,
-            src,
+        yield from files.line._inner(
+            path=filename,
+            line=src,
             present=False,
-            assume_present=True,
             escape_regex_characters=True,
         )
-        apt_sources.remove(repo)
-
     else:
         host.noop(
             'apt repo "{0}" {1}'.format(
@@ -201,7 +191,7 @@ def ppa(src: str, present=True):
         yield 'apt-add-repository -y --remove "{0}"'.format(src)
 
 
-@operation
+@operation()
 def deb(src: str, present=True, force=False):
     """
     Add/remove ``.deb`` file packages.
@@ -234,10 +224,10 @@ def deb(src: str, present=True, force=False):
     # If source is a url
     if urlparse(src).scheme:
         # Generate a temp filename
-        temp_filename = state.get_temp_filename(src)
+        temp_filename = host.get_temp_filename(src)
 
         # Ensure it's downloaded
-        yield from files.download(src, temp_filename)
+        yield from files.download._inner(src=src, dest=temp_filename)
 
         # Override the source with the downloaded file
         src = temp_filename
@@ -266,9 +256,6 @@ def deb(src: str, present=True, force=False):
             # Now reinstall, and critically configure, the package - if there are still
             # missing deps, now we error
             yield "dpkg --force-confdef --force-confold -i {0}".format(src)
-
-            if info:
-                current_packages[info["name"]] = [info.get("version")]
         else:
             host.noop("deb {0} is installed".format(original_src))
 
@@ -279,7 +266,6 @@ def deb(src: str, present=True, force=False):
                 noninteractive_apt("remove", force=force),
                 info["name"],
             )
-            current_packages.pop(info["name"])
         else:
             host.noop("deb {0} is not installed".format(original_src))
 
@@ -326,14 +312,6 @@ def update(cache_time: int = None):
     # cache_time to work.
     if cache_time:
         yield "touch {0}".format(APT_UPDATE_FILENAME)
-        if cache_info is None:
-            host.create_fact(
-                File,
-                kwargs={"path": APT_UPDATE_FILENAME},
-                data={"mtime": datetime.utcnow()},
-            )
-        else:
-            cache_info["mtime"] = datetime.utcnow()
 
 
 _update = update  # noqa: E305
@@ -390,7 +368,7 @@ def dist_upgrade():
     yield noninteractive_apt("dist-upgrade")
 
 
-@operation
+@operation()
 def packages(
     packages: str | list[str] = None,
     present=True,
@@ -454,29 +432,29 @@ def packages(
     """
 
     if update:
-        yield from _update(cache_time=cache_time)
+        yield from _update._inner(cache_time=cache_time)
 
     if upgrade:
-        yield from _upgrade()
+        yield from _upgrade._inner()
 
-    install_command = ["install"]
+    install_command_args = ["install"]
     if no_recommends is True:
-        install_command.append("--no-install-recommends")
+        install_command_args.append("--no-install-recommends")
     if allow_downgrades:
-        install_command.append("--allow-downgrades")
+        install_command_args.append("--allow-downgrades")
 
-    upgrade_command = " ".join(install_command)
+    upgrade_command = " ".join(install_command_args)
 
     if extra_install_args:
-        install_command.append(extra_install_args)
+        install_command_args.append(extra_install_args)
 
-    install_command = " ".join(install_command)
+    install_command = " ".join(install_command_args)
 
-    uninstall_command = ["remove"]
+    uninstall_command_args = ["remove"]
     if extra_uninstall_args:
-        uninstall_command.append(extra_uninstall_args)
+        uninstall_command_args.append(extra_uninstall_args)
 
-    uninstall_command = " ".join(uninstall_command)
+    uninstall_command = " ".join(uninstall_command_args)
 
     # Compare/ensure packages are present/not
     yield from ensure_packages(

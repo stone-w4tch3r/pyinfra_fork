@@ -35,7 +35,7 @@ def upgrade():
 _upgrade = upgrade  # noqa: E305
 
 
-@operation
+@operation()
 def packages(
     packages: str | list[str] = None,
     present=True,
@@ -75,10 +75,10 @@ def packages(
     """
 
     if update:
-        yield from _update()
+        yield from _update._inner()
 
     if upgrade:
-        yield from _upgrade()
+        yield from _upgrade._inner()
 
     yield from ensure_packages(
         host,
@@ -97,10 +97,7 @@ def cask_args():
     return ("", " --cask") if new_cask_cli(host.get_fact(BrewVersion)) else ("cask ", "")
 
 
-@operation(
-    is_idempotent=False,
-    pipeline_facts={"brew_version": ""},
-)
+@operation(is_idempotent=False)
 def cask_upgrade():
     """
     Upgrades all brew casks.
@@ -109,9 +106,7 @@ def cask_upgrade():
     yield "brew %supgrade%s" % cask_args()
 
 
-@operation(
-    pipeline_facts={"brew_version": ""},
-)
+@operation()
 def casks(
     casks: str | list[str] = None,
     present=True,
@@ -143,7 +138,7 @@ def casks(
     """
 
     if upgrade:
-        yield from cask_upgrade()
+        yield from cask_upgrade._inner()
 
     args = cask_args()
 
@@ -160,7 +155,7 @@ def casks(
     )
 
 
-@operation
+@operation()
 def tap(src: str = None, present=True, url: str = None):
     """
     Add/remove brew taps.
@@ -219,7 +214,6 @@ def tap(src: str = None, present=True, url: str = None):
 
     if already_tapped:
         yield "brew untap {0}".format(src)
-        taps.remove(src)
         return
 
     if not present:
@@ -232,5 +226,4 @@ def tap(src: str = None, present=True, url: str = None):
         cmd = " ".join([cmd, url])
 
     yield cmd
-    taps.append(src)
     return

@@ -7,7 +7,7 @@ from pyinfra.api import operation
 from pyinfra.facts.snap import SnapPackage, SnapPackages
 
 
-@operation
+@operation()
 def package(
     packages: str | list[str] = None,
     channel="latest/stable",
@@ -91,14 +91,12 @@ def package(
             else:
                 # we don't want it
                 remove_packages.append(package)
-                snap_packages.remove(package)
 
         # it's not installed
         if package not in snap_packages:
             # we want it
             if present:
                 install_packages.append(package)
-                snap_packages.append(package)
 
             # we don't want it
             else:

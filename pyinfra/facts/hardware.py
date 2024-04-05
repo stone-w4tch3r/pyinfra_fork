@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 
 from pyinfra.api import FactBase, ShortFactBase
@@ -256,7 +258,7 @@ class NetworkDevices(FactBase):
                     )
                 device_info["ipv4"] = ipv4_info[0]
                 if len(ipv4_matches) > 1:
-                    device_info["ipv4"]["additional_ips"] = ipv4_info[1:]
+                    device_info["ipv4"]["additional_ips"] = ipv4_info[1:]  # type: ignore[index]
 
             # IPv6 Addresses
             ipv6_re = (
@@ -277,7 +279,7 @@ class NetworkDevices(FactBase):
                     ipv6_info.append({"address": address, "mask_bits": int(mask_bits)})
                 device_info["ipv6"] = ipv6_info[0]
                 if len(ipv6_matches) > 1:
-                    device_info["ipv6"]["additional_ips"] = ipv6_info[1:]
+                    device_info["ipv6"]["additional_ips"] = ipv6_info[1:]  # type: ignore[index]
 
             all_devices[device_name] = device_info
 

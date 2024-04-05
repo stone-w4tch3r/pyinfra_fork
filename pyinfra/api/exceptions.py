@@ -16,6 +16,25 @@ class ConnectError(PyinfraError):
     """
 
 
+class FactError(PyinfraError):
+    """
+    Exception raised during fact gathering staging if a fact is unable to
+    generate output/change state.
+    """
+
+
+class FactTypeError(FactError, TypeError):
+    """
+    Exception raised when a fact is passed invalid argument types.
+    """
+
+
+class FactValueError(FactError, ValueError):
+    """
+    Exception raised when a fact is passed invalid argument values.
+    """
+
+
 class OperationError(PyinfraError):
     """
     Exception raised during fact gathering staging if an operation is unable to
@@ -47,19 +66,31 @@ class InventoryError(PyinfraError):
     """
 
 
-class NoConnectorError(PyinfraError, TypeError):
+class NoConnectorError(PyinfraError, ValueError):
     """
     Raised when a requested connector is missing.
     """
 
 
-class NoHostError(PyinfraError, TypeError):
+class NoHostError(PyinfraError, KeyError):
     """
     Raised when an inventory is missing a host.
     """
 
 
-class NoGroupError(PyinfraError, TypeError):
+class NoGroupError(PyinfraError, KeyError):
     """
-    Raise when an inventory is missing a group.
+    Raised when an inventory is missing a group.
+    """
+
+
+class ConnectorDataTypeError(PyinfraError, TypeError):
+    """
+    Raised when host connector data has invalid types.
+    """
+
+
+class ArgumentTypeError(PyinfraError, TypeError):
+    """
+    Raised when global arguments are passed with invalid types.
     """

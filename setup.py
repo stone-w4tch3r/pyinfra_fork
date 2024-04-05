@@ -27,20 +27,18 @@ INSTALL_REQUIRES = (
     "setuptools",
     "configparser",
     "pywinrm",
+    "typeguard",
     "distro>=1.6,<2",
     # Backport of graphlib used for DAG operation ordering
     'graphlib_backport ; python_version < "3.9"',
+    # Backport of typing for Unpack (added 3.11)
+    'typing-extensions ; python_version < "3.11"',
 )
 
-ANSIBLE_REQUIRES = ("pyyaml",)  # extras for parsing Ansible inventory
-
-TEST_REQUIRES = ANSIBLE_REQUIRES + (
+TEST_REQUIRES = (
     # Unit testing
-    # TODO: drop Python 3.6 support
-    'pytest==7.0.1 ; python_version <= "3.6"',
-    'coverage==6.2 ; python_version <= "3.6"',
-    'pytest==7.2.0 ; python_version > "3.6"',
-    'coverage==6.5 ; python_version > "3.6"',
+    "pytest==7.2.0",
+    "coverage==6.5",
     "pytest-cov==4.0.0",
     # Formatting & linting
     "black==22.3.0",
@@ -49,7 +47,7 @@ TEST_REQUIRES = ANSIBLE_REQUIRES + (
     "flake8-black==0.3.0",
     "flake8-isort==4.1.1",
     # Typing
-    "mypy==0.971",
+    "mypy",
     "types-cryptography",
     "types-paramiko",
     "types-python-dateutil",
@@ -58,7 +56,7 @@ TEST_REQUIRES = ANSIBLE_REQUIRES + (
 )
 
 DOCS_REQUIRES = (
-    "pyinfra-guzzle_sphinx_theme==0.14",
+    "pyinfra-guzzle_sphinx_theme==0.15",
     "myst-parser==2.0.0",
     "sphinx==6.2.1",
 )
@@ -117,16 +115,14 @@ if __name__ == "__main__":
         entry_points={
             "console_scripts": ("pyinfra=pyinfra_cli.__main__:execute_pyinfra",),
             "pyinfra.connectors": [
-                "ansible = pyinfra.connectors.ansible",
-                "chroot = pyinfra.connectors.chroot",
-                "docker = pyinfra.connectors.docker",
-                "local = pyinfra.connectors.local",
-                "mech = pyinfra.connectors.mech",
-                "ssh = pyinfra.connectors.ssh",
-                "dockerssh = pyinfra.connectors.dockerssh",
-                "vagrant = pyinfra.connectors.vagrant",
-                "winrm = pyinfra.connectors.winrm",
-                "terraform = pyinfra.connectors.terraform",
+                "chroot = pyinfra.connectors.chroot:ChrootConnector",
+                "docker = pyinfra.connectors.docker:DockerConnector",
+                "local = pyinfra.connectors.local:LocalConnector",
+                "ssh = pyinfra.connectors.ssh:SSHConnector",
+                "dockerssh = pyinfra.connectors.dockerssh:DockerSSHConnector",
+                # Inventory only connectors
+                "terraform = pyinfra.connectors.terraform:TerraformInventoryConnector",
+                "vagrant = pyinfra.connectors.vagrant:VagrantInventoryConnector",
             ],
         },
         install_requires=INSTALL_REQUIRES,
@@ -134,7 +130,6 @@ if __name__ == "__main__":
             "test": TEST_REQUIRES,
             "docs": DOCS_REQUIRES,
             "dev": DEV_REQUIRES,
-            "ansible": ANSIBLE_REQUIRES,
         },
         include_package_data=True,
         classifiers=[
@@ -146,7 +141,6 @@ if __name__ == "__main__":
             "License :: OSI Approved :: MIT License",
             "Operating System :: OS Independent",
             "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
