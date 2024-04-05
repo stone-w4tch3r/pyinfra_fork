@@ -3,7 +3,7 @@
 set -euo pipefail
 
 VERSION=`python setup.py --version`
-MAJOR_BRANCH="2.x"
+MAJOR_BRANCH="3.x"
 
 echo "# Releasing pyinfra v${VERSION} (branch ${MAJOR_BRANCH})"
 

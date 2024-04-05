@@ -33,3 +33,4 @@ docs/_deploy_globals.rst
 
 pyinfra-debug.log
 Makefile
+release-info.md
