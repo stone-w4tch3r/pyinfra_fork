@@ -7,13 +7,13 @@ from .util.databases import parse_columns_and_rows
 
 
 def make_psql_command(
-    database=None,
-    user=None,
-    password=None,
-    host=None,
-    port=None,
+    database: str = None,
+    user: str = None,
+    password: str = None,
+    host: str = None,
+    port: str = None,
     executable="psql",
-):
+) -> StringCommand:
     target_bits: list[str] = []
 
     if password:
