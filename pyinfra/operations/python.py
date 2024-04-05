@@ -2,10 +2,8 @@
 The Python module allows you to execute Python code within the context of a deploy.
 """
 
-from inspect import getfullargspec
 from typing import Callable
 
-from pyinfra import logger
 from pyinfra.api import FunctionCommand, operation
 
 

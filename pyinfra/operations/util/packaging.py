@@ -55,7 +55,7 @@ def ensure_packages(
     latest=False,
     upgrade_command: str = None,
     version_join: str = None,
-    expand_package_fact: Callable[[str], list[str]] = None
+    expand_package_fact: Callable[[str], list[str]] = None,
 ):
     """
     Handles this common scenario:
@@ -76,6 +76,8 @@ def ensure_packages(
         upgrade_command (str): as above for upgrading
         version_join (str): the package manager specific "joiner", ie ``=`` for \
             ``<apt_pkg>=<version>``
+        expand_package_fact: fact returning packages providing a capability \
+            (ie ``yum whatprovides``)
     """
 
     if packages_to_ensure is None:
