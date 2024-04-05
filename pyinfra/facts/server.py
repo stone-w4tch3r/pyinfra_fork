@@ -49,6 +49,16 @@ class TmpDir(FactBase):
     command = "echo $TMPDIR"
 
 
+class EnvVar(FactBase[str]):
+    """
+    Returns the value of a given environment variable.
+    """
+
+    @staticmethod
+    def command(variable: str):
+        return f"echo ${variable}"
+
+
 class Hostname(FactBase):
     """
     Returns the current hostname of the server.
