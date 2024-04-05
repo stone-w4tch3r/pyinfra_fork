@@ -92,10 +92,7 @@ def ensure_packages(
             for package in [package.rsplit(version_join, 1) for package in packages_to_ensure]
         ]
 
-    # todo are diff_packages needed at all?
     diff_packages = []
-    diff_expanded_packages = {}
-
     upgrade_packages = []
 
     if present is True:
@@ -108,7 +105,6 @@ def ensure_packages(
 
             if not has_package:
                 diff_packages.append(package)
-                diff_expanded_packages[_package_name(package)] = expanded_packages
             else:
                 # Present packages w/o version specified - for upgrade if latest
                 if isinstance(package, str):
@@ -138,7 +134,6 @@ def ensure_packages(
 
             if has_package:
                 diff_packages.append(package)
-                diff_expanded_packages[_package_name(package)] = expanded_packages
             else:
                 host.noop("package {0} is not installed".format(package))
 
@@ -215,7 +210,6 @@ def ensure_rpm(
         )
 
 
-# todo check this
 def ensure_yum_repo(
     host: Host,
     name_or_url: str,
