@@ -1,3 +1,7 @@
+# v0.3.1
+
+Added EnvVar fact
+
 # v0.3.0
 
 Move to v3, type hints for operations
