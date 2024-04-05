@@ -25,13 +25,13 @@ from pyinfra.facts.postgres import (
 
 @operation(is_idempotent=False)
 def sql(
-    sql,
-    database=None,
+    sql: str,
+    database: str = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user=None,
-    psql_password=None,
-    psql_host=None,
-    psql_port=None,
+    psql_user: str = None,
+    psql_password: str = None,
+    psql_host: str = None,
+    psql_port: int = None,
 ):
     """
     Execute arbitrary SQL against PostgreSQL.
@@ -53,21 +53,21 @@ def sql(
 
 @operation()
 def role(
-    role,
+    role: str,
     present=True,
-    password=None,
+    password: str = None,
     login=True,
     superuser=False,
     inherit=False,
     createdb=False,
     createrole=False,
     replication=False,
-    connection_limit=None,
+    connection_limit: int = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user=None,
-    psql_password=None,
-    psql_host=None,
-    psql_port=None,
+    psql_user: str = None,
+    psql_password: str = None,
+    psql_host: str = None,
+    psql_port: int = None,
 ):
     """
     Add/remove PostgreSQL roles.
@@ -162,20 +162,20 @@ def role(
 
 @operation()
 def database(
-    database,
+    database: str,
     present=True,
-    owner=None,
-    template=None,
-    encoding=None,
-    lc_collate=None,
-    lc_ctype=None,
-    tablespace=None,
-    connection_limit=None,
+    owner: str = None,
+    template: str = None,
+    encoding: str = None,
+    lc_collate: str = None,
+    lc_ctype: str = None,
+    tablespace: str = None,
+    connection_limit: int = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user=None,
-    psql_password=None,
-    psql_host=None,
-    psql_port=None,
+    psql_user: str = None,
+    psql_password: str = None,
+    psql_host: str = None,
+    psql_port: int = None,
 ):
     """
     Add/remove PostgreSQL databases.
@@ -262,13 +262,13 @@ def database(
 
 @operation(is_idempotent=False)
 def dump(
-    dest,
-    database=None,
+    dest: str,
+    database: str = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user=None,
-    psql_password=None,
-    psql_host=None,
-    psql_port=None,
+    psql_user: str = None,
+    psql_password: str = None,
+    psql_host: str = None,
+    psql_port: int = None,
 ):
     """
     Dump a PostgreSQL database into a ``.sql`` file. Requires ``pg_dump``.
@@ -306,13 +306,13 @@ def dump(
 
 @operation(is_idempotent=False)
 def load(
-    src,
-    database=None,
+    src: str,
+    database: str = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user=None,
-    psql_password=None,
-    psql_host=None,
-    psql_port=None,
+    psql_user: str = None,
+    psql_password: str = None,
+    psql_host: str = None,
+    psql_port: int = None,
 ):
     """
     Load ``.sql`` file into a database.
