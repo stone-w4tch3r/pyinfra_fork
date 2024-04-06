@@ -420,3 +420,29 @@ class Block(FactBase):
         if output and (output[0] == f"{MISSING}{self.path}"):
             return None
         return output
+
+
+class FileContent(FactBase[Optional[str]]):
+    """
+    Returns the content of a file as a single string.
+    """
+    path: str = None
+
+    def command(self, path):
+        cmd = f"cat {path}"
+        self.path = path
+
+        backstop = make_formatted_string_command(
+            "(find {0} -type f > /dev/null && echo {1} || echo {2} )",
+            QuoteString(path),
+            QuoteString(f"{EXISTS}{path}"),
+            QuoteString(f"{MISSING}{path}"),
+        )
+        return f"{cmd} || {backstop}"
+
+    def process(self, output: List[str]) -> Optional[str]:
+        if output and (output[0] == f"{EXISTS}{self.path}"):
+            return ""
+        if output and (output[0] == f"{MISSING}{self.path}"):
+            return None
+        return '\n'.join(output)
