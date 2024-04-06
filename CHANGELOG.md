@@ -1,3 +1,7 @@
+# v0.3.2
+
+FileContent fact, minor fixes
+
 # v0.3.1
 
 Added EnvVar fact
