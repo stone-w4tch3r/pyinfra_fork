@@ -849,7 +849,7 @@ def put(
     dest: str,
     user: str = None,
     group: str = None,
-    mode: str = None,
+    mode: str | bool = None,
     add_deploy_dir=True,
     create_remote_dir=True,
     force=False,
