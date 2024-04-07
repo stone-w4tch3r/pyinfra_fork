@@ -1,3 +1,7 @@
+# v0.3.3
+
+FileContent fact empty file fix
+
 # v0.3.2
 
 FileContent fact, minor fixes
