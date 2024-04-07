@@ -426,6 +426,8 @@ class FileContent(FactBase[Optional[str]]):
     """
     Returns the content of a file as a single string.
     """
+    # todo: check file size and presence
+    # todo: remove backstop
     path: str = None
 
     def command(self, path):
