@@ -430,6 +430,10 @@ class FileContent(FactBase[Optional[str]]):
     # todo: remove backstop
     path: str = None
 
+    @staticmethod
+    def default():
+        return ""
+
     def command(self, path):
         cmd = f"cat {path}"
         self.path = path
