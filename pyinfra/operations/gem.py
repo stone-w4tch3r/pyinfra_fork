@@ -10,7 +10,7 @@ from .util.packaging import ensure_packages
 
 
 @operation()
-def packages(packages=None, present=True, latest=False):
+def packages(packages: str | list[str] = None, present=True, latest=False):
     """
     Add/remove/update gem packages.
 
