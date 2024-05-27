@@ -6,12 +6,11 @@ from pyinfra import host, state
 from pyinfra.api import operation
 from pyinfra.facts.rpm import RpmPackageProvides, RpmPackages
 
-from . import files
 from .util.packaging import ensure_packages, ensure_rpm, ensure_yum_repo
 
 
 @operation(is_idempotent=False)
-def key(src):
+def key(src: str):
     """
     Add dnf gpg keys with ``rpm``.
 
@@ -37,19 +36,19 @@ def key(src):
 
 @operation()
 def repo(
-    src,
+    src: str,
     present=True,
-    baseurl=None,
-    description=None,
+    baseurl: str = None,
+    description: str = None,
     enabled=True,
     gpgcheck=True,
-    gpgkey=None,
+    gpgkey: str = None,
 ):
     # NOTE: if updating this docstring also update `yum.repo`
     """
     Add/remove/update dnf repositories.
 
-    + name: URL or name for the ``.repo``   file
+    + src: URL or name for the ``.repo``   file
     + present: whether the ``.repo`` file should be present
     + baseurl: the baseurl of the repo (if ``name`` is not a URL)
     + description: optional verbose description
@@ -81,9 +80,7 @@ def repo(
     """
 
     yield from ensure_yum_repo(
-        state,
         host,
-        files,
         src,
         baseurl,
         present,
@@ -95,7 +92,7 @@ def repo(
 
 
 @operation()
-def rpm(src, present=True):
+def rpm(src: str, present=True):
     # NOTE: if updating this docstring also update `yum.rpm`
     """
     Add/remove ``.rpm`` file packages.
@@ -118,7 +115,7 @@ def rpm(src, present=True):
         )
     """
 
-    yield from ensure_rpm(state, host, files, src, present, "dnf")
+    yield from ensure_rpm(state, host, src, present, "dnf")
 
 
 @operation(is_idempotent=False)
@@ -135,19 +132,19 @@ _update = update._inner  # noqa: E305 (for use below where update is a kwarg)
 
 @operation()
 def packages(
-    packages=None,
+    packages: str | list[str] = None,
     present=True,
     latest=False,
     update=False,
     clean=False,
     nobest=False,
-    extra_install_args=None,
-    extra_uninstall_args=None,
+    extra_install_args: str = None,
+    extra_uninstall_args: str = None,
 ):
     """
     Install/remove/update dnf packages & updates.
 
-    + packages: list of packages to ensure
+    + packages: packages to ensure
     + present: whether the packages should be installed
     + latest: whether to upgrade packages without a specified version
     + update: run ``dnf update`` before installing packages
