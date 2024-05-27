@@ -16,7 +16,12 @@ def _package_name(package: list[str] | str) -> str:
     return package
 
 
-def _has_package(package: str, packages: dict[str, set[str]], expand_package_fact: Callable[[str], list[str]] = None, match_any=False) -> bool:
+def _has_package(
+    package: str,
+    packages: dict[str, set[str]],
+    expand_package_fact: Callable[[str], list[str]] = None,
+    match_any=False,
+) -> bool:
     def in_packages(pkg_name, pkg_versions):
         if not pkg_versions:
             return pkg_name in packages
@@ -162,13 +167,7 @@ def ensure_packages(
         )
 
 
-def ensure_rpm(
-    state: State,
-    host: Host,
-    source: str,
-    present: bool,
-    package_manager_command: str
-):
+def ensure_rpm(state: State, host: Host, source: str, present: bool, package_manager_command: str):
     original_source = source
 
     # If source is a url
@@ -177,7 +176,7 @@ def ensure_rpm(
         temp_filename = "{0}.rpm".format(host.get_temp_filename(source))
 
         # Ensure it's downloaded
-        yield from files.download._inner(src=source, test=temp_filename)
+        yield from files.download._inner(src=source, dest=temp_filename)
 
         # Override the source with the downloaded file
         source = temp_filename
