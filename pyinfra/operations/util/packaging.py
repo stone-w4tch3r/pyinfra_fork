@@ -1,19 +1,21 @@
 import shlex
 from collections import defaultdict
 from io import StringIO
+from typing import Callable
 from urllib.parse import urlparse
 
 from pyinfra.facts.files import File
 from pyinfra.facts.rpm import RpmPackage
+from pyinfra.api import Host
 
 
-def _package_name(package):
+def _package_name(package: list[str] | str) -> str:
     if isinstance(package, list):
         return package[0]
     return package
 
 
-def _has_package(package, packages, expand_package_fact=None, match_any=False):
+def _has_package(package: str, packages: dict[str, set[str]], expand_package_fact: Callable[[str], list[str]] = None, match_any=False) -> bool:
     def in_packages(pkg_name, pkg_versions):
         if not pkg_versions:
             return pkg_name in packages
@@ -43,16 +45,16 @@ def _has_package(package, packages, expand_package_fact=None, match_any=False):
 
 
 def ensure_packages(
-    host,
-    packages,
-    current_packages,
-    present,
-    install_command,
-    uninstall_command,
+    host: Host,
+    packages_to_ensure: str | list[str] | None,
+    current_packages: dict[str, set[str]],
+    present: bool,
+    install_command: str,
+    uninstall_command: str,
     latest=False,
-    upgrade_command=None,
-    version_join=None,
-    expand_package_fact=None,
+    upgrade_command: str = None,
+    version_join: str = None,
+    expand_package_fact: Callable[[str], list[str]] = None
 ):
     """
     Handles this common scenario:
@@ -64,7 +66,7 @@ def ensure_packages(
     + Optionally upgrades packages w/o specified version when present
 
     Args:
-        packages (list): list of packages or package/versions
+        packages_to_ensure (list): list of packages or package/versions
         current_packages (fact): fact returning dict of package names -> version
         present (bool): whether packages should exist or not
         install_command (str): command to prefix to list of packages to install
@@ -75,11 +77,12 @@ def ensure_packages(
             ``<apt_pkg>=<version>``
     """
 
-    if packages is None:
+    if packages_to_ensure is None:
         return
 
-    if isinstance(packages, str):
-        packages = [packages]
+    packages: list[str] = packages_to_ensure
+    if isinstance(packages_to_ensure, str):
+        packages = [packages_to_ensure]
 
     if version_join:
         packages = [

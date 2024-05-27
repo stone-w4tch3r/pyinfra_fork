@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 
 
-def parse_packages(regex, output):
-    packages: dict[str, set[str]] = {}
+def parse_packages(regex, output) -> dict[str, set[str]]:
+    packages = {}
 
     for line in output:
         matches = re.match(regex, line)
