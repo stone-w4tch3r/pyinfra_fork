@@ -2,6 +2,8 @@
 Manage OpenRC init services.
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import operation
 from pyinfra.facts.openrc import OpenrcEnabled, OpenrcStatus

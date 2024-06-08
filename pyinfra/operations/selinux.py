@@ -2,6 +2,8 @@
 Provides operations to set SELinux file contexts, booleans and port types.
 """
 
+from __future__ import annotations
+
 from enum import Enum
 
 from pyinfra import host

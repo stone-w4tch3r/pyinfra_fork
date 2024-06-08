@@ -4,6 +4,8 @@ Execute commands and up/download files *from* the remote host.
 Eg: ``pyinfra -> inventory-host.net <-> another-host.net``
 """
 
+from __future__ import annotations
+
 import shlex
 
 from pyinfra import host

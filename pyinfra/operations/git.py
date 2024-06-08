@@ -2,6 +2,8 @@
 Manage git repositories and configuration.
 """
 
+from __future__ import annotations
+
 import re
 
 from pyinfra import host

@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import shlex
 from collections import defaultdict
 from io import StringIO
-from typing import Callable, cast
+from typing import Callable
 from urllib.parse import urlparse
 
 from pyinfra.api import Host, State
@@ -93,10 +95,7 @@ def ensure_packages(
     if isinstance(packages_to_ensure, str):
         packages_to_ensure = [packages_to_ensure]
 
-    packages: list[str | list[str]] = cast(
-        list[str | list[str]],
-        packages_to_ensure,
-    )
+    packages: list[str | list[str]] = packages_to_ensure  # type: ignore[assignment]
 
     if version_join:
         packages = [

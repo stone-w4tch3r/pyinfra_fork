@@ -2,6 +2,8 @@
 The Python module allows you to execute Python code within the context of a deploy.
 """
 
+from __future__ import annotations
+
 from typing import Callable
 
 from pyinfra.api import FunctionCommand, operation

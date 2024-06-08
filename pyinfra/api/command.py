@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import shlex
 from inspect import getfullargspec
 from string import Formatter

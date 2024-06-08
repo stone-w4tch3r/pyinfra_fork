@@ -2,6 +2,8 @@
 The iptables modules handles iptables rules
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import operation
 from pyinfra.api.exceptions import OperationError

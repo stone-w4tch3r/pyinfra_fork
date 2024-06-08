@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pyinfra import host, state
 from pyinfra.api import operation
 from pyinfra.facts.rpm import RpmPackages

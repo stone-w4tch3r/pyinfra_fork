@@ -13,6 +13,8 @@ See the example/mysql.py
 
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import MaskString, OperationError, QuoteString, StringCommand, operation
 from pyinfra.facts.mysql import (

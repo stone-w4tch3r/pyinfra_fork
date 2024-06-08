@@ -2,6 +2,8 @@
 Manage systemd services.
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import StringCommand, operation
 from pyinfra.facts.systemd import SystemdEnabled, SystemdStatus, _make_systemctl_cmd

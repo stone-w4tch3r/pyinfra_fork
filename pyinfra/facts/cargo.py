@@ -1,5 +1,7 @@
 # encoding: utf8
 
+from __future__ import annotations
+
 from pyinfra.api import FactBase
 
 from .util.packaging import parse_packages

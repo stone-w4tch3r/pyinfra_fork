@@ -2,6 +2,8 @@
 Manage npm (aka node aka Node.js) packages.
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import operation
 from pyinfra.facts.npm import NpmPackages

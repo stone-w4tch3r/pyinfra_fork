@@ -2,6 +2,8 @@
 The LXD modules manage LXD containers
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from pyinfra import host

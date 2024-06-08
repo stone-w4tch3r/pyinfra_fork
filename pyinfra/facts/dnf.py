@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pyinfra.api import FactBase
 
 from .util import make_cat_files_command

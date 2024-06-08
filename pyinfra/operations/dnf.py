@@ -2,6 +2,8 @@
 Manage dnf packages and repositories. Note that dnf package names are case-sensitive.
 """
 
+from __future__ import annotations
+
 from pyinfra import host, state
 from pyinfra.api import operation
 from pyinfra.facts.rpm import RpmPackageProvides, RpmPackages

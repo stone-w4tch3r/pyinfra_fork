@@ -2,6 +2,8 @@
 The files facts provide information about the filesystem and it's contents on the target host.
 """
 
+from __future__ import annotations
+
 import re
 import stat
 from datetime import datetime
