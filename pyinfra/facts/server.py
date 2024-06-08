@@ -5,7 +5,7 @@ import re
 import shutil
 from datetime import datetime
 from tempfile import mkdtemp
-from typing import Dict, List, NewType, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from dateutil.parser import parse as parse_date
 from distro import distro
@@ -350,8 +350,7 @@ class Groups(FactBase[List[str]]):
     command = "cat /etc/group"
     default = list
 
-    @staticmethod
-    def process(output) -> list[str]:
+    def process(self, output) -> list[str]:
         groups: list[str] = []
 
         for line in output:
@@ -359,9 +358,6 @@ class Groups(FactBase[List[str]]):
                 groups.append(line.split(":")[0])
 
         return groups
-
-
-CrontabCommand = NewType("CrontabCommand", int)
 
 
 class CrontabDict(TypedDict):
@@ -374,7 +370,7 @@ class CrontabDict(TypedDict):
     special_time: NotRequired[str]
 
 
-class Crontab(FactBase[Dict[CrontabCommand, CrontabDict]]):
+class Crontab(FactBase[Dict[str, CrontabDict]]):
     """
     Returns a dictionary of cron command -> execution time.
 
@@ -404,9 +400,8 @@ class Crontab(FactBase[Dict[CrontabCommand, CrontabDict]]):
             return "crontab -l -u {0} || true".format(user)
         return "crontab -l || true"
 
-    @staticmethod
-    def process(output):
-        crons: dict[Command, CrontabDict] = {}
+    def process(self, output):
+        crons: dict[str, CrontabDict] = {}
         current_comments = []
 
         for line in output:

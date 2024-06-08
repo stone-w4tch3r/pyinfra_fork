@@ -62,17 +62,17 @@ from .util.files import adjust_regex, ensure_mode_int, get_timestamp, sed_replac
 def download(
     src: str,
     dest: str,
-    user: str = None,
-    group: str = None,
-    mode: str = None,
-    cache_time: int = None,
+    user: str | None = None,
+    group: str | None = None,
+    mode: str | None = None,
+    cache_time: int | None = None,
     force=False,
-    sha256sum: str = None,
-    sha1sum: str = None,
-    md5sum: str = None,
-    headers: dict[str, str] = None,
+    sha256sum: str | None = None,
+    sha1sum: str | None = None,
+    md5sum: str | None = None,
+    headers: dict[str, str] | None = None,
     insecure=False,
-    proxy: str = None,
+    proxy: str | None = None,
 ):
     """
     Download files from remote locations using ``curl`` or ``wget``.
@@ -123,8 +123,8 @@ def download(
         if cache_time:
             # Time on files is not tz-aware, and will be the same tz as the server's time,
             # so we can safely remove the tzinfo from the Date fact before comparison.
-            cache_time = host.get_fact(Date).replace(tzinfo=None) - timedelta(seconds=cache_time)
-            if info["mtime"] and info["mtime"] < cache_time:
+            ctime = host.get_fact(Date).replace(tzinfo=None) - timedelta(seconds=cache_time)
+            if info["mtime"] and info["mtime"] < ctime:
                 download = True
 
         if sha1sum:
@@ -230,8 +230,8 @@ def line(
     path: str,
     line: str,
     present=True,
-    replace: str = None,
-    flags: list[str] = None,
+    replace: str | None = None,
+    flags: list[str] | None = None,
     backup=False,
     interpolate_variables=False,
     escape_regex_characters=False,
@@ -428,9 +428,9 @@ def line(
 @operation()
 def replace(
     path: str,
-    text: str = None,
-    replace: str = None,
-    flags: list[str] = None,
+    text: str | None = None,
+    replace: str | None = None,
+    flags: list[str] | None = None,
     backup=False,
     interpolate_variables=False,
     match=None,  # deprecated
@@ -503,13 +503,13 @@ def replace(
 def sync(
     src: str,
     dest: str,
-    user: str = None,
-    group: str = None,
-    mode: str = None,
-    dir_mode: str = None,
+    user: str | None = None,
+    group: str | None = None,
+    mode: str | None = None,
+    dir_mode: str | None = None,
     delete=False,
-    exclude: str | list[str] | tuple[str] = None,
-    exclude_dir: str | list[str] | tuple[str] = None,
+    exclude: str | list[str] | tuple[str] | None = None,
+    exclude_dir: str | list[str] | tuple[str] | None = None,
     add_deploy_dir=True,
 ):
     """
@@ -652,7 +652,7 @@ def show_rsync_warning():
 
 
 @operation(is_idempotent=False)
-def rsync(src: str, dest: str, flags: list[str] = None):
+def rsync(src: str, dest: str, flags: list[str] | None = None):
     """
     Use ``rsync`` to sync a local directory to the remote system. This operation will actually call
     the ``rsync`` binary on your system.
@@ -760,9 +760,9 @@ def get(
 def put(
     src: str | IO[Any],
     dest: str,
-    user: str = None,
-    group: str = None,
-    mode: str | bool = None,
+    user: str | None = None,
+    group: str | None = None,
+    mode: int | str | bool | None = None,
     add_deploy_dir=True,
     create_remote_dir=True,
     force=False,
@@ -823,6 +823,7 @@ def put(
 
     # Assume string filename
     else:
+        assert isinstance(src, (str, Path))
         # Add deploy directory?
         if add_deploy_dir and state.cwd:
             src = os.path.join(state.cwd, src)
@@ -837,7 +838,7 @@ def put(
             raise IOError("No such file: {0}".format(local_file))
 
     if mode is True:
-        if os.path.isfile(local_file):
+        if isinstance(local_file, str) and os.path.isfile(local_file):
             mode = get_path_permissions_mode(local_file)
         else:
             logger.warning(
@@ -851,6 +852,7 @@ def put(
     remote_file = host.get_fact(File, path=dest)
 
     if not remote_file and bool(host.get_fact(Directory, path=dest)):
+        assert isinstance(src, str)
         dest = unix_path_join(dest, os.path.basename(src))
         remote_file = host.get_fact(File, path=dest)
 
@@ -910,9 +912,9 @@ def put(
 def template(
     src: str | IO[Any],
     dest: str,
-    user: str = None,
-    group: str = None,
-    mode: str = None,
+    user: str | None = None,
+    group: str | None = None,
+    mode: str | None = None,
     create_remote_dir=True,
     **data,
 ):
@@ -1066,15 +1068,15 @@ def _raise_or_remove_invalid_path(fs_type, path, force, force_backup, force_back
 @operation()
 def link(
     path: str,
-    target: str = None,
+    target: str | None = None,
     present=True,
-    user: str = None,
-    group: str = None,
+    user: str | None = None,
+    group: str | None = None,
     symbolic=True,
     create_remote_dir=True,
     force=False,
     force_backup=True,
-    force_backup_dir: str = None,
+    force_backup_dir: str | None = None,
 ):
     """
     Add/remove/update links.
@@ -1174,14 +1176,14 @@ def link(
 def file(
     path: str,
     present=True,
-    user: str = None,
-    group: str = None,
-    mode: str = None,
+    user: str | None = None,
+    group: str | None = None,
+    mode: int | str | None = None,
     touch=False,
     create_remote_dir=True,
     force=False,
     force_backup=True,
-    force_backup_dir: str = None,
+    force_backup_dir: str | None = None,
 ):
     """
     Add/remove/update files.
@@ -1276,13 +1278,13 @@ def file(
 def directory(
     path: str,
     present=True,
-    user: str = None,
-    group: str = None,
-    mode: str = None,
+    user: str | None = None,
+    group: str | None = None,
+    mode: int | str | None = None,
     recursive=False,
     force=False,
     force_backup=True,
-    force_backup_dir: str = None,
+    force_backup_dir: str | None = None,
     _no_check_owner_mode=False,
     _no_fail_on_link=False,
 ):
@@ -1375,7 +1377,7 @@ def directory(
 
 
 @operation()
-def flags(path: str, flags: list[str] = None, present=True):
+def flags(path: str, flags: list[str] | None = None, present=True):
     """
     Set/clear file flags.
 
@@ -1425,17 +1427,17 @@ def flags(path: str, flags: list[str] = None, present=True):
 @operation()
 def block(
     path: str,
-    content: str = None,
+    content: str | list[str] | None = None,
     present=True,
-    line: str = None,
+    line: str | None = None,
     backup=False,
     escape_regex_characters=False,
     try_prevent_shell_expansion=False,
     before=False,
     after=False,
-    marker: str = None,
-    begin: str = None,
-    end: str = None,
+    marker: str | None = None,
+    begin: str | None = None,
+    end: str | None = None,
 ):
     """
     Ensure content, surrounded by the appropriate markers, is present (or not) in the file.
@@ -1583,6 +1585,7 @@ def block(
                 f"\n{the_block}\n{here}",
             )
         elif current == []:  # markers not found and have a pattern to match (not start or end)
+            assert isinstance(line, str)
             regex = adjust_regex(line, escape_regex_characters)
             print_before = "{ print }" if before else ""
             print_after = "{ print }" if after else ""

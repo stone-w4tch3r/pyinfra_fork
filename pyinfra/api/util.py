@@ -109,16 +109,16 @@ def get_caller_frameinfo(frame_offset: int = 0):
 
 
 def get_operation_order_from_stack(state: "State"):
+
     stack_items = list(reversed(stack()))
 
+    i = 0
     # Find the *first* occurrence of our deploy file in the reversed stack
     if state.current_deploy_filename:
         for i, stack_item in enumerate(stack_items):
             frame = getframeinfo(stack_item[0])
             if frame.filename == state.current_deploy_filename:
                 break
-    else:
-        i = 0
 
     # Now generate a list of line numbers *following that file*
     line_numbers = []
@@ -139,7 +139,7 @@ def get_operation_order_from_stack(state: "State"):
     return line_numbers
 
 
-def get_template(filename_or_io: str):
+def get_template(filename_or_io: str | IO):
     """
     Gets a jinja2 ``Template`` object for the input filename or string, with caching
     based on the filename of the template, or the SHA1 of the input string.

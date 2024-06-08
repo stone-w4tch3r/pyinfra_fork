@@ -2,6 +2,8 @@
 Manage apk packages.
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import operation
 from pyinfra.facts.apk import ApkPackages
@@ -40,7 +42,7 @@ _update = update._inner  # noqa: E305
 
 @operation()
 def packages(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     present=True,
     latest=False,
     update=False,

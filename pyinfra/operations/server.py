@@ -3,6 +3,8 @@ The server module takes care of os-level state. Targets POSIX compatibility, tes
 Linux/BSD.
 """
 
+from __future__ import annotations
+
 import shlex
 from io import StringIO
 from itertools import filterfalse, tee
@@ -284,9 +286,9 @@ def modprobe(module: str, present=True, force=False):
 def mount(
     path: str,
     mounted=True,
-    options: list[str] = None,
-    device: str = None,
-    fs_type: str = None,
+    options: list[str] | None = None,
+    device: str | None = None,
+    fs_type: str | None = None,
     # TODO: do we want to manage fstab here?
     # update_fstab=False,
 ):
@@ -345,7 +347,7 @@ def mount(
 
 
 @operation()
-def hostname(hostname: str, hostname_file: str = None):
+def hostname(hostname: str, hostname_file: str | None = None):
     """
     Set the system hostname using ``hostnamectl`` or ``hostname`` on older systems.
 
@@ -404,7 +406,7 @@ def hostname(hostname: str, hostname_file: str = None):
 @operation()
 def sysctl(
     key: str,
-    value: str,
+    value: str | int | list[str | int],
     persist=False,
     persist_file="/etc/sysctl.conf",
 ):
@@ -454,8 +456,8 @@ def service(
     running=True,
     restarted=False,
     reloaded=False,
-    command: str = None,
-    enabled: bool = None,
+    command: str | None = None,
+    enabled: bool | None = None,
 ):
     """
     Manage the state of services. This command checks for the presence of all the
@@ -586,14 +588,14 @@ def packages(
 def crontab(
     command: str,
     present=True,
-    user: str = None,
-    cron_name: str = None,
+    user: str | None = None,
+    cron_name: str | None = None,
     minute="*",
     hour="*",
     month="*",
     day_of_week="*",
     day_of_month="*",
-    special_time: str = None,
+    special_time: str | None = None,
     interpolate_variables=False,
 ):
     """
@@ -664,7 +666,7 @@ def crontab(
 
     exists = existing_crontab is not None
 
-    edit_commands = []
+    edit_commands: list[str | StringCommand] = []
     temp_filename = host.get_temp_filename()
 
     if special_time:
@@ -759,7 +761,7 @@ def crontab(
 
 
 @operation()
-def group(group: str, present=True, system=False, gid: int | str = None):
+def group(group: str, present=True, system=False, gid: int | str | None = None):
     """
     Add/remove system groups.
 
@@ -830,10 +832,10 @@ def group(group: str, present=True, system=False, gid: int | str = None):
 def user_authorized_keys(
     user: str,
     public_keys: str | list[str],
-    group: str = None,
+    group: str | None = None,
     delete_keys=False,
-    authorized_key_directory: str = None,
-    authorized_key_filename: str = None,
+    authorized_key_directory: str | None = None,
+    authorized_key_filename: str | None = None,
 ):
     """
     Manage `authorized_keys` of system users.
@@ -928,20 +930,20 @@ def user_authorized_keys(
 def user(
     user: str,
     present=True,
-    home: str = None,
-    shell: str = None,
-    group: str = None,
-    groups: list[str] = None,
-    public_keys: str | list[str] = None,
+    home: str | None = None,
+    shell: str | None = None,
+    group: str | None = None,
+    groups: list[str] | None = None,
+    public_keys: str | list[str] | None = None,
     delete_keys=False,
     ensure_home=True,
     create_home=False,
     system=False,
-    uid: int = None,
-    comment: str = None,
+    uid: int | None = None,
+    comment: str | None = None,
     add_deploy_dir=True,
     unique=True,
-    password: str = None,
+    password: str | None = None,
 ):
     """
     Add/remove/update system users & their ssh `authorized_keys`.
@@ -1127,7 +1129,7 @@ def user(
                 existing_user["password"] = password
 
     # Ensure home directory ownership
-    if ensure_home:
+    if ensure_home and home:
         yield from files.directory._inner(
             path=home,
             user=user,

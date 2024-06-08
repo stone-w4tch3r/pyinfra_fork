@@ -2,7 +2,7 @@ from pyinfra.api import operation
 
 
 @operation(is_idempotent=False)
-def agent(server: str = None, port: int = None):
+def agent(server: str | None = None, port: int | None = None):
     """
     Run puppet agent
 

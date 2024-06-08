@@ -18,8 +18,8 @@ def service(
     running=True,
     restarted=False,
     reloaded=False,
-    command: str = None,
-    enabled: bool = None,
+    command: str | None = None,
+    enabled: bool | None = None,
 ):
     """
     Manage the state of upstart managed services.

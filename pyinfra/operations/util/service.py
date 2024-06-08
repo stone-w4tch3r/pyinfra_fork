@@ -6,10 +6,10 @@ def handle_service_control(
     name: str,
     statuses: dict[str, bool],
     formatter: str,
-    running: bool = None,
-    restarted: bool = None,
-    reloaded: bool = None,
-    command: str = None,
+    running: bool | None = None,
+    restarted: bool | None = None,
+    reloaded: bool | None = None,
+    command: str | None = None,
     status_argument="status",
 ):
     is_running = statuses.get(name, None)

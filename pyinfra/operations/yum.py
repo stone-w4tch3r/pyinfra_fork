@@ -38,11 +38,11 @@ def key(src: str):
 def repo(
     src: str,
     present=True,
-    baseurl: str = None,
-    description: str = None,
+    baseurl: str | None = None,
+    description: str | None = None,
     enabled=True,
     gpgcheck=True,
-    gpgkey: str = None,
+    gpgkey: str | None = None,
 ):
     # NOTE: if updating this docstring also update `dnf.repo`
     """
@@ -50,7 +50,7 @@ def repo(
 
     + src: URL or name for the ``.repo``   file
     + present: whether the ``.repo`` file should be present
-    + baseurl: the baseurl of the repo (if ``name`` is not a URL)
+    + baseurl: the baseurl of the repo (if ``src`` is not a URL)
     + description: optional verbose description
     + enabled: whether this repo is enabled
     + gpgcheck: whether set ``gpgcheck=1``
@@ -132,14 +132,14 @@ _update = update._inner  # noqa: E305 (for use below where update is a kwarg)
 
 @operation()
 def packages(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     present=True,
     latest=False,
     update=False,
     clean=False,
     nobest=False,
-    extra_install_args: str = None,
-    extra_uninstall_args: str = None,
+    extra_install_args: str | None = None,
+    extra_uninstall_args: str | None = None,
 ):
     """
     Install/remove/update yum packages & updates.

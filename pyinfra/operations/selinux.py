@@ -45,20 +45,22 @@ def boolean(bool_name: str, value: Boolean, persistent=False):
         )
     """
 
+    value_str: str
     if value in ["on", "off"]:  # compatibility with the old version
-        pass
+        assert isinstance(value, str)
+        value_str = value
     elif value is Boolean.ON:
-        value = "on"
+        value_str = "on"
     elif value is Boolean.OFF:
-        value = "off"
+        value_str = "off"
     else:
         raise OperationValueError(f"Invalid value '{value}' for boolean operation")
 
-    if host.get_fact(SEBoolean, boolean=bool_name) != value:
+    if host.get_fact(SEBoolean, boolean=bool_name) != value_str:
         persist = "-P " if persistent else ""
-        yield StringCommand("setsebool", f"{persist}{bool_name}", value)
+        yield StringCommand("setsebool", f"{persist}{bool_name}", value_str)
     else:
-        host.noop(f"boolean '{bool_name}' already had the value '{value}'")
+        host.noop(f"boolean '{bool_name}' already had the value '{value_str}'")
 
 
 @operation()
@@ -88,7 +90,7 @@ def file_context(path: str, se_type: str):
 
 
 @operation()
-def file_context_mapping(target: str, se_type: str = None, present=True):
+def file_context_mapping(target: str, se_type: str | None = None, present=True):
     """
     Set the SELinux file context mapping for paths matching the target.
 
@@ -128,7 +130,7 @@ def file_context_mapping(target: str, se_type: str = None, present=True):
 
 
 @operation()
-def port(protocol: Protocol, port_num: int, se_type: str = None, present=True):
+def port(protocol: Protocol | str, port_num: int, se_type: str | None = None, present=True):
     """
     Set the SELinux type for the specified protocol and port.
 
@@ -152,6 +154,7 @@ def port(protocol: Protocol, port_num: int, se_type: str = None, present=True):
     """
 
     if protocol is Protocol:
+        assert isinstance(protocol, Protocol)
         protocol = protocol.value
 
     if present and (se_type is None):

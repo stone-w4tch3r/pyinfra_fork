@@ -9,7 +9,7 @@ from pyinfra.facts.snap import SnapPackage, SnapPackages
 
 @operation()
 def package(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     channel="latest/stable",
     classic=False,
     present=True,

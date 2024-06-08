@@ -8,11 +8,11 @@ from .util.databases import parse_columns_and_rows
 
 
 def make_mysql_command(
-    database: str = None,
-    user: str = None,
-    password: str = None,
-    host: str = None,
-    port: int = None,
+    database: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
+    host: str | None = None,
+    port: int | None = None,
     executable="mysql",
 ):
     target_bits = [executable]
@@ -37,7 +37,11 @@ def make_mysql_command(
     return StringCommand(*target_bits)
 
 
-def make_execute_mysql_command(command: str, ignore_errors=False, **mysql_kwargs):
+def make_execute_mysql_command(
+    command: str | StringCommand,
+    ignore_errors=False,
+    **mysql_kwargs,
+):
     commands_bits = [
         make_mysql_command(**mysql_kwargs),
         "-Be",

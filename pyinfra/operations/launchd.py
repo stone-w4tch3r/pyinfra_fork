@@ -14,7 +14,7 @@ def service(
     service: str,
     running=True,
     restarted=False,
-    command: str = None,
+    command: str | None = None,
 ):
     """
     Manage the state of systemd managed services.

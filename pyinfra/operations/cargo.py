@@ -2,6 +2,8 @@
 Manage cargo (aka Rust) packages.
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import operation
 from pyinfra.facts.cargo import CargoPackages
@@ -10,7 +12,7 @@ from .util.packaging import ensure_packages
 
 
 @operation()
-def packages(packages: str | list[str] = None, present=True, latest=False):
+def packages(packages: str | list[str] | None = None, present=True, latest=False):
     """
     Install/remove/update cargo packages.
 

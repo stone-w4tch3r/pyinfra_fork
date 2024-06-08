@@ -35,7 +35,7 @@ _update = update._inner  # noqa: E305
 
 @operation()
 def packages(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     present=True,
     update=False,
     upgrade=False,

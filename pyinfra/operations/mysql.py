@@ -27,12 +27,12 @@ from pyinfra.facts.mysql import (
 @operation(is_idempotent=False)
 def sql(
     sql: str,
-    database: str = None,
+    database: str | None = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user: str = None,
-    mysql_password: str = None,
-    mysql_host: str = None,
-    mysql_port: int = None,
+    mysql_user: str | None = None,
+    mysql_password: str | None = None,
+    mysql_host: str | None = None,
+    mysql_port: int | None = None,
 ):
     """
     Execute arbitrary SQL against MySQL.
@@ -57,23 +57,23 @@ def user(
     user: str,
     present: bool = True,
     user_hostname: str = "localhost",
-    password: str = None,
-    privileges: str | list[str] = None,
+    password: str | None = None,
+    privileges: str | list[str] | None = None,
     # MySQL REQUIRE SSL/TLS options
-    require: str = None,  # SSL or X509
-    require_cipher: str = None,
-    require_issuer: str = None,
-    require_subject: str = None,
+    require: str | None = None,  # SSL or X509
+    require_cipher: str | None = None,
+    require_issuer: str | None = None,
+    require_subject: str | None = None,
     # MySQL WITH resource limit options
-    max_connections: int = None,
-    max_queries_per_hour: int = None,
-    max_updates_per_hour: int = None,
-    max_connections_per_hour: int = None,
+    max_connections: int | None = None,
+    max_queries_per_hour: int | None = None,
+    max_updates_per_hour: int | None = None,
+    max_connections_per_hour: int | None = None,
     # Details for speaking to MySQL via `mysql` CLI via `mysql` CLI
-    mysql_user: str = None,
-    mysql_password: str = None,
-    mysql_host: str = None,
-    mysql_port: int = None,
+    mysql_user: str | None = None,
+    mysql_password: str | None = None,
+    mysql_host: str | None = None,
+    mysql_port: int | None = None,
 ):
     ...
     """
@@ -286,16 +286,16 @@ def database(
     database: str,
     # Desired database settings
     present: bool = True,
-    collate: str = None,
-    charset: str = None,
-    user: str = None,
+    collate: str | None = None,
+    charset: str | None = None,
+    user: str | None = None,
     user_hostname: str = "localhost",
     user_privileges: str | list[str] = "ALL",
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user: str = None,
-    mysql_password: str = None,
-    mysql_host: str = None,
-    mysql_port: int = None,
+    mysql_user: str | None = None,
+    mysql_password: str | None = None,
+    mysql_host: str | None = None,
+    mysql_port: int | None = None,
 ):
     ...
     """
@@ -387,17 +387,17 @@ def database(
 @operation()
 def privileges(
     user: str,
-    privileges: str | list[str],
+    privileges: str | list[str] | set[str],
     user_hostname="localhost",
     database="*",
     table="*",
     flush=True,
     with_grant_option=False,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user: str = None,
-    mysql_password: str = None,
-    mysql_host: str = None,
-    mysql_port: int = None,
+    mysql_user: str | None = None,
+    mysql_password: str | None = None,
+    mysql_host: str | None = None,
+    mysql_port: int | None = None,
 ):
     """
     Add/remove MySQL privileges for a user, either global, database or table specific.
@@ -527,12 +527,12 @@ _privileges = privileges  # noqa: E305 (for use where kwarg is the same)
 @operation(is_idempotent=False)
 def dump(
     dest: str,
-    database: str = None,
+    database: str | None = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user: str = None,
-    mysql_password: str = None,
-    mysql_host: str = None,
-    mysql_port: int = None,
+    mysql_user: str | None = None,
+    mysql_password: str | None = None,
+    mysql_host: str | None = None,
+    mysql_port: int | None = None,
 ):
     """
     Dump a MySQL database into a ``.sql`` file. Requires ``mysqldump``.
@@ -568,12 +568,12 @@ def dump(
 @operation(is_idempotent=False)
 def load(
     src: str,
-    database: str = None,
+    database: str | None = None,
     # Details for speaking to MySQL via `mysql` CLI
-    mysql_user: str = None,
-    mysql_password: str = None,
-    mysql_host: str = None,
-    mysql_port: int = None,
+    mysql_user: str | None = None,
+    mysql_password: str | None = None,
+    mysql_host: str | None = None,
+    mysql_port: int | None = None,
 ):
     """
     Load ``.sql`` file into a database.

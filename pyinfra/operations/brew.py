@@ -2,10 +2,12 @@
 Manage brew packages on mac/OSX. See https://brew.sh/
 """
 
-import urllib
+from __future__ import annotations
+
+import urllib.parse
 
 from pyinfra import host
-from pyinfra.api import Host, operation
+from pyinfra.api import operation
 from pyinfra.facts.brew import BrewCasks, BrewPackages, BrewTaps, BrewVersion, new_cask_cli
 
 from .util.packaging import ensure_packages
@@ -37,7 +39,7 @@ _upgrade = upgrade  # noqa: E305
 
 @operation()
 def packages(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     present=True,
     latest=False,
     update=False,
@@ -108,7 +110,7 @@ def cask_upgrade():
 
 @operation()
 def casks(
-    casks: str | list[str] = None,
+    casks: str | list[str] | None = None,
     present=True,
     latest=False,
     upgrade=False,
@@ -156,7 +158,7 @@ def casks(
 
 
 @operation()
-def tap(src: str = None, present=True, url: str = None):
+def tap(src: str | None = None, present=True, url: str | None = None):
     """
     Add/remove brew taps.
 
@@ -199,7 +201,7 @@ def tap(src: str = None, present=True, url: str = None):
         host.noop("no tap was specified")
         return
 
-    src = src or urllib.parse.urlparse(url).path.strip("/")
+    src = src or str(urllib.parse.urlparse(url).path).strip("/")
 
     if len(src.split("/")) != 2:
         host.noop("src '{0}' doesn't have two components.".format(src))

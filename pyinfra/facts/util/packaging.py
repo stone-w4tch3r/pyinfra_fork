@@ -5,7 +5,7 @@ from typing import Iterable
 
 
 def parse_packages(regex: str, output: Iterable[str]) -> dict[str, set[str]]:
-    packages = {}
+    packages: dict[str, set[str]] = {}
 
     for line in output:
         matches = re.match(regex, line)

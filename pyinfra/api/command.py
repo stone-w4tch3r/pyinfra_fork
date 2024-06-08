@@ -1,7 +1,7 @@
 import shlex
 from inspect import getfullargspec
 from string import Formatter
-from typing import TYPE_CHECKING, Callable, Union
+from typing import IO, TYPE_CHECKING, Callable, Union
 
 import gevent
 from typing_extensions import Unpack
@@ -143,7 +143,7 @@ class StringCommand(PyinfraCommand):
 class FileUploadCommand(PyinfraCommand):
     def __init__(
         self,
-        src: str,
+        src: str | IO,
         dest: str,
         remote_temp_filename=None,
         **kwargs: Unpack[ConnectorArguments],
@@ -173,7 +173,7 @@ class FileDownloadCommand(PyinfraCommand):
     def __init__(
         self,
         src: str,
-        dest: str,
+        dest: str | IO,
         remote_temp_filename=None,
         **kwargs: Unpack[ConnectorArguments],
     ):

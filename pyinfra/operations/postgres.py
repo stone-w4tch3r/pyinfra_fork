@@ -13,6 +13,8 @@ See example/postgresql.py for detailed example
 
 """
 
+from __future__ import annotations
+
 from pyinfra import host
 from pyinfra.api import MaskString, StringCommand, operation
 from pyinfra.facts.postgres import (
@@ -26,12 +28,12 @@ from pyinfra.facts.postgres import (
 @operation(is_idempotent=False)
 def sql(
     sql: str,
-    database: str = None,
+    database: str | None = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user: str = None,
-    psql_password: str = None,
-    psql_host: str = None,
-    psql_port: int = None,
+    psql_user: str | None = None,
+    psql_password: str | None = None,
+    psql_host: str | None = None,
+    psql_port: int | None = None,
 ):
     """
     Execute arbitrary SQL against PostgreSQL.
@@ -55,19 +57,19 @@ def sql(
 def role(
     role: str,
     present=True,
-    password: str = None,
+    password: str | None = None,
     login=True,
     superuser=False,
     inherit=False,
     createdb=False,
     createrole=False,
     replication=False,
-    connection_limit: int = None,
+    connection_limit: int | None = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user: str = None,
-    psql_password: str = None,
-    psql_host: str = None,
-    psql_port: int = None,
+    psql_user: str | None = None,
+    psql_password: str | None = None,
+    psql_host: str | None = None,
+    psql_port: int | None = None,
 ):
     """
     Add/remove PostgreSQL roles.
@@ -164,18 +166,18 @@ def role(
 def database(
     database: str,
     present=True,
-    owner: str = None,
-    template: str = None,
-    encoding: str = None,
-    lc_collate: str = None,
-    lc_ctype: str = None,
-    tablespace: str = None,
-    connection_limit: int = None,
+    owner: str | None = None,
+    template: str | None = None,
+    encoding: str | None = None,
+    lc_collate: str | None = None,
+    lc_ctype: str | None = None,
+    tablespace: str | None = None,
+    connection_limit: int | None = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user: str = None,
-    psql_password: str = None,
-    psql_host: str = None,
-    psql_port: int = None,
+    psql_user: str | None = None,
+    psql_password: str | None = None,
+    psql_host: str | None = None,
+    psql_port: int | None = None,
 ):
     """
     Add/remove PostgreSQL databases.
@@ -263,12 +265,12 @@ def database(
 @operation(is_idempotent=False)
 def dump(
     dest: str,
-    database: str = None,
+    database: str | None = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user: str = None,
-    psql_password: str = None,
-    psql_host: str = None,
-    psql_port: int = None,
+    psql_user: str | None = None,
+    psql_password: str | None = None,
+    psql_host: str | None = None,
+    psql_port: int | None = None,
 ):
     """
     Dump a PostgreSQL database into a ``.sql`` file. Requires ``pg_dump``.
@@ -307,12 +309,12 @@ def dump(
 @operation(is_idempotent=False)
 def load(
     src: str,
-    database: str = None,
+    database: str | None = None,
     # Details for speaking to PostgreSQL via `psql` CLI
-    psql_user: str = None,
-    psql_password: str = None,
-    psql_host: str = None,
-    psql_port: int = None,
+    psql_user: str | None = None,
+    psql_password: str | None = None,
+    psql_host: str | None = None,
+    psql_port: int | None = None,
 ):
     """
     Load ``.sql`` file into a database.

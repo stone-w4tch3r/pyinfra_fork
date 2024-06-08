@@ -65,6 +65,6 @@ def raise_exception(exception: Exception, *args, **kwargs):
     """
 
     def raise_exc(*args, **kwargs):  # pragma: no cover
-        raise exception(*args, **kwargs)
+        raise exception(*args, **kwargs)  # type: ignore[operator]
 
     yield FunctionCommand(raise_exc, args, kwargs)

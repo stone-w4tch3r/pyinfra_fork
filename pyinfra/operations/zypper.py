@@ -108,15 +108,15 @@ _update = update._inner  # noqa: E305 (for use below where update is a kwarg)
 
 @operation()
 def packages(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     present=True,
     latest=False,
     update=False,
     clean=False,
-    extra_global_install_args: str = None,
-    extra_install_args: str = None,
-    extra_global_uninstall_args: str = None,
-    extra_uninstall_args: str = None,
+    extra_global_install_args: str | None = None,
+    extra_install_args: str | None = None,
+    extra_global_uninstall_args: str | None = None,
+    extra_uninstall_args: str | None = None,
 ):
     """
     Install/remove/update zypper packages & updates.

@@ -84,7 +84,7 @@ def delete(ctid: str):
 
 
 @operation(is_idempotent=False)
-def create(ctid: str, template: str = None):
+def create(ctid: str, template: str | None = None):
     """
     Create OpenVZ containers.
 

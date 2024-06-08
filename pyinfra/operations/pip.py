@@ -15,7 +15,7 @@ from .util.packaging import ensure_packages
 @operation()
 def virtualenv(
     path: str,
-    python: str = None,
+    python: str | None = None,
     venv=False,
     site_packages=False,
     always_copy=False,
@@ -82,7 +82,7 @@ _virtualenv = virtualenv._inner  # noqa
 @operation()
 def venv(
     path: str,
-    python: str = None,
+    python: str | None = None,
     site_packages=False,
     always_copy=False,
     present=True,
@@ -117,14 +117,14 @@ def venv(
 
 @operation()
 def packages(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     present=True,
     latest=False,
-    requirements: str = None,
+    requirements: str | None = None,
     pip="pip",
-    virtualenv: str = None,
-    virtualenv_kwargs: dict = None,
-    extra_install_args: str = None,
+    virtualenv: str | None = None,
+    virtualenv_kwargs: dict | None = None,
+    extra_install_args: str | None = None,
 ):
     """
     Install/remove/update pip packages.

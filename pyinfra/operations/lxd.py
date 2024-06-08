@@ -1,6 +1,7 @@
 """
 The LXD modules manage LXD containers
 """
+
 from typing import Any
 
 from pyinfra import host
@@ -12,8 +13,7 @@ def get_container_named(name: str, containers: list[dict[str, Any]]) -> dict[str
     for container in containers:
         if container["name"] == name:
             return container
-        else:
-            return None
+    return None
 
 
 @operation()

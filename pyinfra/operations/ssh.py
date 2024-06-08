@@ -63,7 +63,7 @@ def keyscan(hostname: str, force=False, port=22):
 
 
 @operation(is_idempotent=False)
-def command(hostname: str, command: str, user: str = None, port=22):
+def command(hostname: str, command: str, user: str | None = None, port=22):
     """
     Execute commands on other servers over SSH.
 
@@ -97,9 +97,9 @@ def command(hostname: str, command: str, user: str = None, port=22):
 def upload(
     hostname: str,
     filename: str,
-    remote_filename: str = None,
+    remote_filename: str | None = None,
     port=22,
-    user: str = None,
+    user: str | None = None,
     use_remote_sudo=False,
     ssh_keyscan=False,
 ):
@@ -161,10 +161,10 @@ def upload(
 def download(
     hostname: str,
     filename: str,
-    local_filename: str = None,
+    local_filename: str | None = None,
     force=False,
     port=22,
-    user: str = None,
+    user: str | None = None,
     ssh_keyscan=False,
 ):
     """

@@ -12,7 +12,7 @@ from .util.packaging import ensure_packages
 
 
 @operation()
-def packages(packages: str | list[str] = None, present=True, pkg_path: str = None):
+def packages(packages: str | list[str] | None = None, present=True, pkg_path: str | None = None):
     """
     Install/remove/update pkg packages. This will use ``pkg ...`` where available
     (FreeBSD) and the ``pkg_*`` variants elsewhere.

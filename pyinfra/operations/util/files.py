@@ -5,9 +5,9 @@ from pyinfra.api import QuoteString, StringCommand
 
 
 def unix_path_join(*parts) -> str:
-    parts = list(parts)
-    parts[0:-1] = [part.rstrip("/") for part in parts[0:-1]]
-    return "/".join(parts)
+    part_list = list(parts)
+    part_list[0:-1] = [part.rstrip("/") for part in part_list[0:-1]]
+    return "/".join(part_list)
 
 
 def ensure_mode_int(mode: str | int | None) -> int | str | None:
@@ -34,11 +34,11 @@ def sed_replace(
     filename: str,
     line: str,
     replace: str,
-    flags: list[str] = None,
+    flags: list[str] | None = None,
     backup=False,
     interpolate_variables=False,
 ) -> StringCommand:
-    flags = "".join(flags) if flags else ""
+    flags_str = "".join(flags) if flags else ""
 
     line = line.replace("/", r"\/")
     replace = str(replace)
@@ -57,7 +57,7 @@ def sed_replace(
         replace = replace.replace("'", "'\"'\"'")
         sed_script_formatter = "'s/{0}/{1}/{2}'"
 
-    sed_script = sed_script_formatter.format(line, replace, flags)
+    sed_script = sed_script_formatter.format(line, replace, flags_str)
 
     sed_command = StringCommand(
         "sed",
@@ -73,7 +73,7 @@ def sed_replace(
     return sed_command
 
 
-def chmod(target: str, mode: str, recursive=False) -> StringCommand:
+def chmod(target: str, mode: str | int, recursive=False) -> StringCommand:
     args = ["chmod"]
     if recursive:
         args.append("-R")
@@ -84,7 +84,11 @@ def chmod(target: str, mode: str, recursive=False) -> StringCommand:
 
 
 def chown(
-    target: str, user: str, group: str = None, recursive=False, dereference=True
+    target: str,
+    user: str | None = None,
+    group: str | None = None,
+    recursive=False,
+    dereference=True,
 ) -> StringCommand:
     command = "chown"
     user_group = None

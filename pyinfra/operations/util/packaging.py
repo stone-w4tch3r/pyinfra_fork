@@ -1,7 +1,7 @@
 import shlex
 from collections import defaultdict
 from io import StringIO
-from typing import Callable
+from typing import Callable, cast
 from urllib.parse import urlparse
 
 from pyinfra.api import Host, State
@@ -17,11 +17,11 @@ def _package_name(package: list[str] | str) -> str:
 
 
 def _has_package(
-    package: str,
+    package: str | list[str],
     packages: dict[str, set[str]],
-    expand_package_fact: Callable[[str], list[str]] = None,
+    expand_package_fact: Callable[[str], list[str | list[str]]] | None = None,
     match_any=False,
-) -> bool:
+) -> tuple[bool, dict]:
     def in_packages(pkg_name, pkg_versions):
         if not pkg_versions:
             return pkg_name in packages
@@ -29,9 +29,12 @@ def _has_package(
             version in packages[pkg_name] for version in pkg_versions
         )
 
-    packages_to_check = [package]
+    packages_to_check: list[str | list[str]] = [package]
     if expand_package_fact:
-        packages_to_check = expand_package_fact(package) or packages_to_check
+        if isinstance(package, list):
+            packages_to_check = expand_package_fact(package[0]) or packages_to_check
+        else:
+            packages_to_check = expand_package_fact(package) or packages_to_check
 
     package_name_to_versions = defaultdict(set)
     for pkg in packages_to_check:
@@ -58,9 +61,9 @@ def ensure_packages(
     install_command: str,
     uninstall_command: str,
     latest=False,
-    upgrade_command: str = None,
-    version_join: str = None,
-    expand_package_fact: Callable[[str], list[str]] = None,
+    upgrade_command: str | None = None,
+    version_join: str | None = None,
+    expand_package_fact: Callable[[str], list[str | list[str]]] | None = None,
 ):
     """
     Handles this common scenario:
@@ -87,15 +90,18 @@ def ensure_packages(
 
     if packages_to_ensure is None:
         return
-
-    packages: list[str] = packages_to_ensure
     if isinstance(packages_to_ensure, str):
-        packages = [packages_to_ensure]
+        packages_to_ensure = [packages_to_ensure]
+
+    packages: list[str | list[str]] = cast(
+        list[str | list[str]],
+        packages_to_ensure,
+    )
 
     if version_join:
         packages = [
             package[0] if len(package) == 1 else package
-            for package in [package.rsplit(version_join, 1) for package in packages]
+            for package in [package.rsplit(version_join, 1) for package in packages]  # type: ignore[union-attr] # noqa
         ]
 
     diff_packages = []
@@ -151,7 +157,7 @@ def ensure_packages(
         command = install_command if present else uninstall_command
 
         joined_packages = [
-            version_join.join(package) if isinstance(package, list) else package
+            version_join.join(package) if isinstance(package, list) else package  # type: ignore[union-attr] # noqa
             for package in diff_packages
         ]
 
@@ -217,14 +223,14 @@ def ensure_rpm(state: State, host: Host, source: str, present: bool, package_man
 def ensure_yum_repo(
     host: Host,
     name_or_url: str,
-    baseurl: str,
+    baseurl: str | None,
     present: bool,
-    description: str,
+    description: str | None,
     enabled: bool,
     gpgcheck: bool,
-    gpgkey: str,
+    gpgkey: str | None,
     repo_directory="/etc/yum.repos.d/",
-    type_: str = None,
+    type_: str | None = None,
 ):
     url = None
     url_parts = urlparse(name_or_url)
@@ -246,6 +252,8 @@ def ensure_yum_repo(
         if not host.get_fact(File, path=filename):
             yield from files.download._inner(src=url, dest=filename)
         return
+
+    assert isinstance(baseurl, str)
 
     # Description defaults to name
     description = description or name_or_url

@@ -18,8 +18,8 @@ def service(
     running=True,
     restarted=False,
     reloaded=False,
-    enabled: bool = None,
-    command: str = None,
+    enabled: bool | None = None,
+    command: str | None = None,
 ):
     """
     Manage the state of SysV Init (/etc/init.d) services.

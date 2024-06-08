@@ -13,6 +13,7 @@
 700
 8
 9
+DCCP
 FakePathLike
 IRGRP
 IROTH
@@ -28,6 +29,7 @@ IXOTH
 IXUSR
 Launchd
 Openvz
+SCTP
 TMPDIR
 UNIXCONFDIR
 abstractmethod
@@ -151,6 +153,7 @@ fstab
 fullmatch
 gaierror
 generic
+getaddrinfo
 getargspec
 getcallargs
 getdoc
@@ -302,6 +305,7 @@ readlink
 rebase
 recv
 redbaron
+redef
 release
 remote
 remoteforward

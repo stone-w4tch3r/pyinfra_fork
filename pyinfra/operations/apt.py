@@ -2,6 +2,8 @@
 Manage apt packages and repositories.
 """
 
+from __future__ import annotations
+
 from datetime import timedelta
 from urllib.parse import urlparse
 
@@ -37,7 +39,7 @@ def noninteractive_apt(command: str, force=False):
 
 
 @operation()
-def key(src: str = None, keyserver: str = None, keyid: str = None):
+def key(src: str | None = None, keyserver: str | None = None, keyid: str | list[str] | None = None):
     """
     Add apt gpg keys with ``apt-key``.
 
@@ -103,7 +105,7 @@ def key(src: str = None, keyserver: str = None, keyid: str = None):
 
 
 @operation()
-def repo(src: str, present=True, filename: str = None):
+def repo(src: str, present=True, filename: str | None = None):
     """
     Add/remove apt repositories.
 
@@ -273,7 +275,7 @@ def deb(src: str, present=True, force=False):
         "unless the ``cache_time`` argument is provided."
     ),
 )
-def update(cache_time: int = None):
+def update(cache_time: int | None = None):
     """
     Updates apt repositories.
 
@@ -366,17 +368,17 @@ def dist_upgrade():
 
 @operation()
 def packages(
-    packages: str | list[str] = None,
+    packages: str | list[str] | None = None,
     present=True,
     latest=False,
     update=False,
-    cache_time: int = None,
+    cache_time: int | None = None,
     upgrade=False,
     force=False,
     no_recommends=False,
     allow_downgrades=False,
-    extra_install_args: str = None,
-    extra_uninstall_args: str = None,
+    extra_install_args: str | None = None,
+    extra_uninstall_args: str | None = None,
 ):
     """
     Install/remove/update packages & update apt.
